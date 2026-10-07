@@ -1,6 +1,6 @@
 # RDC PDC Manager
 
-A role-based web application for managing **post-dated cheques (PDCs)** from the moment a salesperson collects them from a customer to the moment they clear, bounce or are settled another way. It replaces cheque registers kept in spreadsheets with one workflow that has an owner at every step, a full audit trail, dashboards, and Excel reporting.
+A role-based web application for managing **post-dated cheques (PDCs)** from the moment a salesperson collects them from a customer to the moment they clear, bounce or are settled another way. It gives cheque tracking one workflow with an owner at every step, a full audit trail, dashboards, and Excel reporting.
 
 Built for the finance operations of a multi-location business that runs on Oracle E-Business Suite (R12.2.10). Customers and sales representatives are synchronised from the ERP, so nobody re-types master data.
 
