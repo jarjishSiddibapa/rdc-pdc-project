@@ -1,0 +1,974 @@
+{% extends "base.html" %}
+{% block title %}Reports — {{ app_name }}{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+
+{# ══════════════════════════════════════════════════════════════════
+   REPORT BUILDER — tabbed card
+   ══════════════════════════════════════════════════════════════════ #}
+<div class="content-card" style="margin-bottom:1.25rem;">
+
+    {# ── Card header ──────────────────────────────────────────── #}
+    <div class="card-header">
+        <h2 class="card-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Excel Report Builder
+        </h2>
+        <span style="font-size:var(--text-sm);color:var(--text-muted);">Configure filters, columns &amp; formatting — then preview &amp; download</span>
+    </div>
+
+    {# ── Tab bar ──────────────────────────────────────────────── #}
+    <div class="rb-tabbar">
+        <button class="rb-tab is-active" onclick="rbSwitchTab(this,'filters')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filters
+            <span class="rb-badge" id="filterBadge" style="display:none;"></span>
+        </button>
+        <button class="rb-tab" onclick="rbSwitchTab(this,'columns')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            Columns &amp; Labels
+            <span class="rb-badge" id="colsBadge"></span>
+        </button>
+        <button class="rb-tab" onclick="rbSwitchTab(this,'options')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="2" fill="currentColor"/><circle cx="16" cy="12" r="2" fill="currentColor"/><circle cx="8" cy="18" r="2" fill="currentColor"/></svg>
+            Report Options
+        </button>
+    </div>
+
+    {# ════════════════════════════════════════════════════════════
+       TAB 1 — FILTERS
+       ════════════════════════════════════════════════════════════ #}
+    <div id="tab-filters" class="rb-panel form-body">
+
+        <p class="rb-hint">Apply any combination of filters. All fields are optional — leave blank to include everything.</p>
+
+        <div class="rb-section-label">Status &amp; Type</div>
+        <div class="form-row-3">
+            <div class="form-group">
+                <label class="form-label">Status <small style="color:var(--text-muted);font-weight:400;">(multi-select)</small></label>
+                <select id="f-status" class="form-input" multiple placeholder="All Statuses" style="display:none;">
+                    {% for s in all_statuses %}
+                    <option value="{{ s }}">{{ s }}</option>
+                    {% endfor %}
+                </select>
+                <script>
+                /* Init inline — before DOMContentLoaded — so the raw listbox never shows */
+                (function () {
+                    if (typeof TomSelect === 'undefined') return;
+                    var el = document.getElementById('f-status');
+                    if (!el || el.tomselect) return;
+                    new TomSelect(el, {
+                        plugins: ['remove_button'],
+                        maxOptions: 60,
+                        placeholder: 'All Statuses',
+                    });
+                })();
+                </script>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Cheque Type</label>
+                <select id="f-cheque_type" class="form-input ts-select" style="display:none;" style="display:none;">
+                    <option value="">All Types</option>
+                    <option value="PDC">PDC (Post-Dated)</option>
+                    <option value="Normal">Normal</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Lying With</label>
+                <select id="f-lying_with" class="form-input ts-select" style="display:none;">
+                    <option value="">Anyone</option>
+                    {% for lw in lying_with_options %}
+                    <option value="{{ lw }}">{{ lw }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="rb-section-label">Customer &amp; Bank</div>
+        <div class="form-row-2">
+            <div class="form-group">
+                <label class="form-label">Customer</label>
+                <select id="f-customer_id" class="form-input ts-select" style="display:none;">
+                    <option value="">All Customers</option>
+                    {% for c in customers %}
+                    <option value="{{ c.customer_id }}">{{ c.customer_name }} ({{ c.customer_code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Bank</label>
+                <select id="f-bank_id" class="form-input ts-select" style="display:none;">
+                    <option value="">All Banks</option>
+                    {% for b in banks %}
+                    <option value="{{ b.bank_id }}">{{ b.display_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Cheque Number</label>
+            <input type="text" id="f-cheque_number" class="form-input" placeholder="Search by cheque number…">
+        </div>
+
+        {% if current_user.role in ('Admin', 'HO_Accounts', 'Accounts') %}
+        <div class="rb-section-label">Location &amp; Salesperson</div>
+        <div class="form-row-2">
+            {% if current_user.role in ('Admin', 'HO_Accounts') %}
+            <div class="form-group">
+                <label class="form-label">Location</label>
+                <select id="f-location_id" class="form-input ts-select" style="display:none;">
+                    <option value="">All Locations</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.location_id }}">{{ loc.location_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="form-group">
+                <label class="form-label">Salesperson</label>
+                <select id="f-salesperson_id" class="form-input ts-select" style="display:none;">
+                    <option value="">All Salespersons</option>
+                    {% for sp in salespersons %}
+                    <option value="{{ sp.user_id }}">{{ sp.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="rb-section-label">Date Ranges</div>
+
+        <div class="form-fieldset" style="margin-bottom:12px;">
+            <legend>Cheque Date</legend>
+            <div class="form-row-2">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">From</label>
+                    <input type="date" id="f-cheque_date_from" class="form-input">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">To</label>
+                    <input type="date" id="f-cheque_date_to" class="form-input">
+                </div>
+            </div>
+        </div>
+
+        <div class="form-fieldset" style="margin-bottom:12px;">
+            <legend>Received Date</legend>
+            <div class="form-row-2">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">From</label>
+                    <input type="date" id="f-received_date_from" class="form-input">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">To</label>
+                    <input type="date" id="f-received_date_to" class="form-input">
+                </div>
+            </div>
+        </div>
+
+        <div class="form-fieldset" style="margin-bottom:18px;">
+            <legend>Created Date</legend>
+            <div class="form-row-2">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">From</label>
+                    <input type="date" id="f-created_date_from" class="form-input">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">To</label>
+                    <input type="date" id="f-created_date_to" class="form-input">
+                </div>
+            </div>
+        </div>
+
+        <div class="rb-section-label">Amount Range (₹)</div>
+        <div class="form-row-2">
+            <div class="form-group">
+                <label class="form-label">Minimum Amount</label>
+                <input type="number" id="f-amount_from" class="form-input" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Maximum Amount</label>
+                <input type="number" id="f-amount_to" class="form-input" step="0.01" min="0" placeholder="No limit">
+            </div>
+        </div>
+    </div>
+
+    {# ════════════════════════════════════════════════════════════
+       TAB 2 — COLUMNS & LABELS
+       ════════════════════════════════════════════════════════════ #}
+    <div id="tab-columns" class="rb-panel form-body" style="display:none;">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+            <p class="rb-hint" style="margin:0;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                Drag rows to reorder · check to include · edit the label to rename that column in Excel
+            </p>
+            <div class="action-btns">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAllCols(true)">Select All</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAllCols(false)">Deselect All</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="resetDefaultCols()">Reset Defaults</button>
+            </div>
+        </div>
+
+        <ul id="colList" class="col-list">
+            {% for key, col in report_columns.items() %}
+            <li class="col-item" data-key="{{ key }}" draggable="true">
+                <span class="col-drag-handle" title="Drag to reorder">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity=".5"><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="9" cy="19" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg>
+                </span>
+                <input type="checkbox" class="col-check" id="col-{{ key }}" {% if col.default %}checked{% endif %}>
+                <label for="col-{{ key }}" class="col-key-label" title="{{ key }}">{{ key }}</label>
+                <input type="text" class="col-label-input form-input form-input-sm"
+                       value="{{ col.label }}" placeholder="{{ col.label }}"
+                       data-default="{{ col.label }}" data-key="{{ key }}">
+                <span class="col-type-badge col-type-{{ col.type }}">{{ col.type }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    {# ════════════════════════════════════════════════════════════
+       TAB 3 — REPORT OPTIONS
+       ════════════════════════════════════════════════════════════ #}
+    <div id="tab-options" class="rb-panel form-body" style="display:none;">
+
+        <div class="rb-section-label">Report Identity</div>
+        <div class="form-group">
+            <label class="form-label">Report Title</label>
+            <input type="text" id="opt-report_title" class="form-input"
+                   value="Cheques Report" placeholder="Enter a title for the Excel report…">
+        </div>
+
+        <div class="rb-section-label">Appearance</div>
+        <div class="form-row-2">
+            <div class="form-group">
+                <label class="form-label">Header &amp; Title Colour</label>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <input type="color" id="opt-header_color" value="#4F46E5"
+                           style="width:44px;height:40px;border:1px solid var(--border-color);border-radius:var(--radius-md);cursor:pointer;padding:3px;background:var(--bg-input);flex-shrink:0;">
+                    <input type="text" id="opt-header_color_hex" class="form-input"
+                           value="#4F46E5" placeholder="#4F46E5" style="font-family:var(--font-mono);max-width:120px;">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        {% for hex in ['#4F46E5','#0F766E','#0369A1','#7C3AED','#B45309','#BE123C','#15803D','#1D4ED8'] %}
+                        <button type="button" class="color-swatch"
+                                style="background:{{ hex }};" title="{{ hex }}"
+                                onclick="setColor('{{ hex }}')"></button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Date Format</label>
+                <select id="opt-date_format" class="form-input">
+                    <option value="dmy" selected>DD-MM-YYYY &nbsp;(31-01-2025)</option>
+                    <option value="dmy_slash">DD/MM/YYYY &nbsp;(31/01/2025)</option>
+                    <option value="ymd">YYYY-MM-DD &nbsp;(2025-01-31)</option>
+                    <option value="mdy">MM-DD-YYYY &nbsp;(01-31-2025)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="rb-section-label">Sort Order</div>
+        <div class="form-row-2">
+            <div class="form-group">
+                <label class="form-label">Sort By</label>
+                <select id="opt-sort_by" class="form-input">
+                    <option value="cheque_date" selected>Cheque Date</option>
+                    <option value="created_at">Created At</option>
+                    <option value="amount">Amount</option>
+                    <option value="status">Status</option>
+                    <option value="uid">UID</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Direction</label>
+                <select id="opt-sort_dir" class="form-input">
+                    <option value="desc" selected>Descending (newest / largest first)</option>
+                    <option value="asc">Ascending (oldest / smallest first)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="rb-section-label">Extra Sheets</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <label class="checkbox-wrapper">
+                <input type="checkbox" id="opt-include_summary" checked>
+                <span class="checkmark"></span>
+                <span>
+                    <strong>Summary section</strong> — total count, total amount, and per-status breakdown appended after data rows
+                </span>
+            </label>
+            <label class="checkbox-wrapper">
+                <input type="checkbox" id="opt-include_filter_sheet" checked>
+                <span class="checkmark"></span>
+                <span>
+                    <strong>Filters Applied sheet</strong> — second worksheet listing all active filters, sort order, and export metadata
+                </span>
+            </label>
+        </div>
+    </div>
+
+    {# ── Action bar ───────────────────────────────────────────── #}
+    <div class="rb-actions">
+        <button type="button" class="btn btn-secondary" onclick="clearAllFilters()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.49"/></svg>
+            Clear Filters
+        </button>
+        <div style="margin-left:auto;display:flex;gap:10px;">
+            <button type="button" class="btn btn-secondary" onclick="triggerPreview()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Refresh Preview
+            </button>
+            <button type="button" class="btn btn-primary" onclick="downloadExcel()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download Excel
+            </button>
+        </div>
+    </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════
+   LIVE PREVIEW
+   ══════════════════════════════════════════════════════════════════ #}
+<div class="content-card" style="margin-bottom:1.5rem;">
+    <div class="card-header">
+        <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+            Live Preview
+        </h2>
+        <div style="display:flex;gap:16px;align-items:center;">
+            <span id="previewCount" style="font-size:var(--text-sm);color:var(--text-muted);">—</span>
+            <span id="previewAmount" style="display:none;font-size:var(--text-sm);font-weight:700;color:var(--text-primary);"></span>
+            <span id="previewSpinner" style="display:none;align-items:center;gap:6px;font-size:var(--text-sm);color:var(--text-muted);">
+                <svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                Updating…
+            </span>
+        </div>
+    </div>
+    <div id="previewError" class="preview-error" style="display:none;"></div>
+    <div class="preview-wrap" id="previewTableWrap">
+        <div class="preview-empty">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".25"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+            <p>Adjust filters or columns above — preview will appear here.</p>
+        </div>
+    </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════
+   QUICK EXPORTS
+   ══════════════════════════════════════════════════════════════════ #}
+<div class="rb-section-label" style="margin-bottom:.75rem;">Quick Exports</div>
+<div class="kpi-grid" style="margin-bottom:1.5rem;">
+    <a href="{{ url_for('reports.export_cheques') }}" class="quick-action-card">
+        <div class="qa-icon qa-purple"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        <h3>All Cheques</h3><p>Full export — no filters</p>
+    </a>
+    <a href="{{ url_for('reports.export_cheques') }}?status=Cleared" class="quick-action-card">
+        <div class="qa-icon qa-green"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <h3>Cleared</h3><p>All cleared cheques</p>
+    </a>
+    <a href="{{ url_for('reports.export_cheques') }}?status=Bounced" class="quick-action-card">
+        <div class="qa-icon qa-red"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+        <h3>Bounced</h3><p>All bounced cheques</p>
+    </a>
+    <a href="{{ url_for('reports.export_cheques') }}?status=Deposited" class="quick-action-card">
+        <div class="qa-icon qa-blue"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+        <h3>Deposited</h3><p>Currently in bank</p>
+    </a>
+    <a href="{{ url_for('reports.export_cheques') }}?status=Pending+with+Customer" class="quick-action-card">
+        <div class="qa-icon qa-orange"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <h3>Pending</h3><p>Awaiting collection</p>
+    </a>
+    <a href="{{ url_for('reports.export_cheques') }}?status=Legal+Notice+Initiated" class="quick-action-card">
+        <div class="qa-icon" style="background:rgba(153,27,27,.12);color:#991b1b;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>Legal Notice</h3><p>Legal proceedings initiated</p>
+    </a>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════
+   CHARTS
+   ══════════════════════════════════════════════════════════════════ #}
+<div class="grid-2">
+    <div class="content-card">
+        <div class="card-header"><h2 class="card-title">Status Distribution</h2></div>
+        <div class="card-body chart-container"><canvas id="reportStatusChart"></canvas></div>
+    </div>
+    <div class="content-card">
+        <div class="card-header"><h2 class="card-title">Monthly Trend (Last 12 Months)</h2></div>
+        <div class="card-body chart-container"><canvas id="reportTrendChart"></canvas></div>
+    </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════════
+   PAGE-SCOPED STYLES (all variables from the real design system)
+   ══════════════════════════════════════════════════════════════════ #}
+<style>
+/* ── Hint text ─────────────────────────────────────── */
+.rb-hint {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    margin-bottom: 18px;
+    line-height: 1.5;
+}
+
+/* ── Section labels (replaces filter-section-label) ─ */
+.rb-section-label {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 22px 0 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-light);
+}
+.rb-panel .rb-section-label:first-child { margin-top: 0; }
+
+/* ── Tab bar ───────────────────────────────────────── */
+.rb-tabbar {
+    display: flex;
+    gap: 0;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: transparent;
+}
+.rb-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 12px 18px;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    font-family: var(--font-family);
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+    transition: color var(--transition-fast), border-color var(--transition-fast);
+    white-space: nowrap;
+}
+.rb-tab:hover { color: var(--text-primary); }
+.rb-tab.is-active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+}
+.rb-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: var(--accent-primary);
+    color: #fff;
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* ── Panel ─────────────────────────────────────────── */
+.rb-panel { /* padding comes from .form-body */ }
+
+/* ── Action bar ────────────────────────────────────── */
+.rb-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-light);
+    background: transparent;
+}
+
+/* ── Column list ───────────────────────────────────── */
+.col-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.col-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    cursor: default;
+    user-select: none;
+}
+.col-item:hover { border-color: var(--border-color); }
+.col-item.drag-over {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.col-item.dragging { opacity: .35; }
+
+.col-drag-handle {
+    color: var(--text-muted);
+    cursor: grab;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+}
+.col-drag-handle:active { cursor: grabbing; }
+
+.col-check {
+    width: 16px; height: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+    accent-color: var(--accent-primary);
+}
+.col-key-label {
+    font-size: var(--text-xs);
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    white-space: nowrap;
+    min-width: 110px;
+    width: 110px;
+    flex-shrink: 0;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.col-label-input {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0 !important;
+}
+.col-type-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.col-type-text     { background: rgba(99,102,241,.12);  color: #818cf8; }
+.col-type-number   { background: rgba(16,185,129,.12);  color: #34d399; }
+.col-type-date     { background: rgba(249,115,22,.12);  color: #fb923c; }
+.col-type-datetime { background: rgba(139,92,246,.12);  color: #a78bfa; }
+
+/* ── Color swatches ────────────────────────────────── */
+.color-swatch {
+    width: 24px; height: 24px;
+    border-radius: var(--radius-sm);
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+.color-swatch:hover { transform: scale(1.2); border-color: rgba(255,255,255,.5); }
+
+/* ── Preview ───────────────────────────────────────── */
+.preview-wrap { overflow-x: auto; max-height: 500px; overflow-y: auto; }
+.preview-empty {
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+.preview-error {
+    margin: 0 20px 12px;
+    padding: 10px 14px;
+    background: var(--danger-bg);
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: var(--radius-md);
+    color: var(--danger);
+    font-size: var(--text-sm);
+}
+
+.preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+    white-space: nowrap;
+}
+.preview-table thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--accent-primary);
+    color: #fff;
+    font-weight: 600;
+    font-size: var(--text-xs);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+    border-right: 1px solid rgba(255,255,255,.1);
+}
+.preview-table tbody tr { transition: background var(--transition-fast); }
+.preview-table tbody tr:hover { background: var(--table-hover); }
+.preview-table tbody tr:nth-child(even) { background: var(--table-stripe); }
+.preview-table tbody td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-secondary);
+    vertical-align: middle;
+}
+.preview-table tbody td.num {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+/* ── Spinner ───────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin .75s linear infinite; display: inline-block; }
+</style>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   REPORT BUILDER — full JS
+   ════════════════════════════════════════════════════════════════════ */
+
+// ── Tab switching ──────────────────────────────────────────────────
+function rbSwitchTab(btn, tabId) {
+    document.querySelectorAll('.rb-tab').forEach(b => b.classList.remove('is-active'));
+    document.querySelectorAll('.rb-panel').forEach(p => p.style.display = 'none');
+    btn.classList.add('is-active');
+    document.getElementById('tab-' + tabId).style.display = 'block';
+}
+
+// ── Badges ─────────────────────────────────────────────────────────
+function updateColsBadge() {
+    document.getElementById('colsBadge').textContent =
+        document.querySelectorAll('#colList .col-check:checked').length;
+}
+
+function updateFilterBadge() {
+    let n = 0;
+    // plain text / date / number inputs
+    ['cheque_number','cheque_date_from','cheque_date_to',
+     'received_date_from','received_date_to',
+     'created_date_from','created_date_to',
+     'amount_from','amount_to'].forEach(id => {
+        const el = document.getElementById('f-' + id);
+        if (el && el.value.trim()) n++;
+    });
+    // TomSelect singles
+    ['cheque_type','lying_with','customer_id','bank_id','location_id','salesperson_id'].forEach(id => {
+        const el = document.getElementById('f-' + id);
+        if (el && el.tomselect && el.tomselect.getValue()) n++;
+    });
+    // status multi
+    const st = document.getElementById('f-status');
+    if (st && st.tomselect) n += st.tomselect.getValue().length;
+
+    const badge = document.getElementById('filterBadge');
+    if (n > 0) { badge.textContent = n; badge.style.display = 'inline-flex'; }
+    else        { badge.style.display = 'none'; }
+}
+
+// ── Build URLSearchParams from the whole UI ────────────────────────
+function buildParams() {
+    const p = new URLSearchParams();
+
+    // status (multi)
+    const stEl = document.getElementById('f-status');
+    if (stEl && stEl.tomselect) stEl.tomselect.getValue().forEach(v => p.append('status', v));
+
+    // single selects
+    ['cheque_type','lying_with','customer_id','bank_id','location_id','salesperson_id'].forEach(id => {
+        const el = document.getElementById('f-' + id);
+        if (!el) return;
+        const v = el.tomselect ? el.tomselect.getValue() : el.value;
+        if (v) p.set(id, v);
+    });
+
+    // text / date / number inputs
+    ['cheque_number','cheque_date_from','cheque_date_to',
+     'received_date_from','received_date_to',
+     'created_date_from','created_date_to',
+     'amount_from','amount_to'].forEach(id => {
+        const el = document.getElementById('f-' + id);
+        if (el && el.value.trim()) p.set(id, el.value.trim());
+    });
+
+    // columns in drag order
+    document.querySelectorAll('#colList .col-item').forEach(item => {
+        if (!item.querySelector('.col-check').checked) return;
+        const key = item.dataset.key;
+        p.append('cols', key);
+        const inp = item.querySelector('.col-label-input');
+        const lbl = inp.value.trim();
+        if (lbl && lbl !== inp.dataset.default) p.set('label_' + key, lbl);
+    });
+
+    // report options
+    p.set('report_title',         document.getElementById('opt-report_title').value.trim() || 'Cheques Report');
+    p.set('header_color',         document.getElementById('opt-header_color_hex').value.replace(/^#/,''));
+    p.set('date_format',          document.getElementById('opt-date_format').value);
+    p.set('sort_by',              document.getElementById('opt-sort_by').value);
+    p.set('sort_dir',             document.getElementById('opt-sort_dir').value);
+    p.set('include_summary',      document.getElementById('opt-include_summary').checked ? '1' : '0');
+    p.set('include_filter_sheet', document.getElementById('opt-include_filter_sheet').checked ? '1' : '0');
+
+    return p;
+}
+
+// ── Download ───────────────────────────────────────────────────────
+function downloadExcel() {
+    window.location.href = '/reports/export/cheques?' + buildParams();
+}
+
+// ── Clear filters ──────────────────────────────────────────────────
+function clearAllFilters() {
+    ['cheque_number','cheque_date_from','cheque_date_to',
+     'received_date_from','received_date_to',
+     'created_date_from','created_date_to',
+     'amount_from','amount_to'].forEach(id => {
+        const el = document.getElementById('f-' + id);
+        if (el) el.value = '';
+    });
+    ['cheque_type','lying_with','customer_id','bank_id','location_id','salesperson_id','status'].forEach(id => {
+        const el = document.getElementById('f-' + id);
+        if (el && el.tomselect) el.tomselect.clear();
+    });
+    updateFilterBadge();
+    schedulePreview();
+}
+
+// ── Column helpers ─────────────────────────────────────────────────
+const COL_DEFAULTS = {{ report_columns | tojson }};
+
+function toggleAllCols(on) {
+    document.querySelectorAll('#colList .col-check').forEach(c => { c.checked = on; });
+    updateColsBadge(); schedulePreview();
+}
+function resetDefaultCols() {
+    document.querySelectorAll('#colList .col-item').forEach(item => {
+        const meta = COL_DEFAULTS[item.dataset.key] || {};
+        item.querySelector('.col-check').checked = !!meta.default;
+        const inp = item.querySelector('.col-label-input');
+        inp.value = meta.label || item.dataset.key;
+    });
+    updateColsBadge(); schedulePreview();
+}
+
+// ── Colour helpers ─────────────────────────────────────────────────
+function setColor(hex) {
+    document.getElementById('opt-header_color').value     = hex;
+    document.getElementById('opt-header_color_hex').value = hex;
+}
+function initColorSync() {
+    const picker = document.getElementById('opt-header_color');
+    const hex    = document.getElementById('opt-header_color_hex');
+    picker.addEventListener('input', () => { hex.value = picker.value; });
+    hex.addEventListener('input', () => {
+        const v = hex.value.trim();
+        const norm = v.startsWith('#') ? v : '#' + v;
+        if (/^#[0-9A-Fa-f]{6}$/.test(norm)) picker.value = norm;
+    });
+}
+
+// ── Drag-and-drop reorder ──────────────────────────────────────────
+let _dragSrc = null;
+function initDrag() {
+    const list = document.getElementById('colList');
+    list.addEventListener('dragstart', e => {
+        _dragSrc = e.target.closest('.col-item');
+        if (_dragSrc) { _dragSrc.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+    });
+    list.addEventListener('dragover', e => {
+        e.preventDefault();
+        const target = e.target.closest('.col-item');
+        list.querySelectorAll('.col-item').forEach(i => i.classList.remove('drag-over'));
+        if (target && target !== _dragSrc) target.classList.add('drag-over');
+    });
+    list.addEventListener('dragleave', e => {
+        const item = e.target.closest('.col-item');
+        if (item) item.classList.remove('drag-over');
+    });
+    list.addEventListener('drop', e => {
+        e.preventDefault();
+        const target = e.target.closest('.col-item');
+        if (target && _dragSrc && target !== _dragSrc) {
+            const rect = target.getBoundingClientRect();
+            list.insertBefore(_dragSrc, e.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
+        }
+        list.querySelectorAll('.col-item').forEach(i => i.classList.remove('drag-over'));
+        schedulePreview();
+    });
+    list.addEventListener('dragend', () => {
+        list.querySelectorAll('.col-item').forEach(i => i.classList.remove('dragging','drag-over'));
+        _dragSrc = null;
+    });
+}
+
+// ── Live preview ───────────────────────────────────────────────────
+let _previewTimer = null;
+function schedulePreview(delay) {
+    delay = (delay === undefined) ? 800 : delay;
+    clearTimeout(_previewTimer);
+    document.getElementById('previewSpinner').style.display = 'inline-flex';
+    _previewTimer = setTimeout(triggerPreview, delay);
+}
+
+async function triggerPreview() {
+    clearTimeout(_previewTimer);
+    const spinner = document.getElementById('previewSpinner');
+    const errEl   = document.getElementById('previewError');
+    const wrap    = document.getElementById('previewTableWrap');
+    spinner.style.display = 'inline-flex';
+    errEl.style.display   = 'none';
+
+    try {
+        const res  = await fetch('/reports/preview?' + buildParams());
+        const data = await res.json();
+
+        if (!data.ok) {
+            errEl.textContent   = 'Preview error: ' + (data.error || 'Unknown');
+            errEl.style.display = 'block';
+            wrap.innerHTML = '';
+            return;
+        }
+
+        // meta
+        const total = data.total, shown = data.showing;
+        document.getElementById('previewCount').textContent =
+            shown === total
+                ? total.toLocaleString() + ' row' + (total !== 1 ? 's' : '')
+                : 'Showing first ' + shown.toLocaleString() + ' of ' + total.toLocaleString() + ' rows';
+
+        const amtEl = document.getElementById('previewAmount');
+        if (data.amount_total !== null && data.amount_total !== undefined) {
+            amtEl.textContent   = '₹ ' + Number(data.amount_total).toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2});
+            amtEl.style.display = 'inline';
+        } else { amtEl.style.display = 'none'; }
+
+        if (!data.rows || !data.rows.length) {
+            wrap.innerHTML = '<div class="preview-empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".25"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg><p>No records match the selected filters.</p></div>';
+            return;
+        }
+
+        const numSet = new Set(data.col_types.map((t,i) => t === 'number' ? i : -1).filter(i => i >= 0));
+
+        let html = '<table class="preview-table"><thead><tr>';
+        data.headers.forEach(h => { html += '<th>' + esc(h) + '</th>'; });
+        html += '</tr></thead><tbody>';
+        data.rows.forEach(row => {
+            html += '<tr>';
+            row.forEach((cell, ci) => {
+                const isNum = numSet.has(ci);
+                let disp = (cell === null || cell === undefined) ? '' : String(cell);
+                if (isNum && disp !== '' && !isNaN(+disp))
+                    disp = Number(disp).toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2});
+                html += '<td class="' + (isNum ? 'num' : '') + '">' + esc(disp) + '</td>';
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+
+    } catch(err) {
+        errEl.textContent   = 'Network error: ' + err.message;
+        errEl.style.display = 'block';
+    } finally {
+        spinner.style.display = 'none';
+    }
+}
+
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Wire all change listeners ──────────────────────────────────────
+function wireListeners() {
+    // plain inputs
+    ['cheque_number','cheque_date_from','cheque_date_to',
+     'received_date_from','received_date_to',
+     'created_date_from','created_date_to',
+     'amount_from','amount_to'].forEach(id => {
+        const el = document.getElementById('f-' + id);
+        if (!el) return;
+        el.addEventListener('input',  () => { updateFilterBadge(); schedulePreview(); });
+        el.addEventListener('change', () => { updateFilterBadge(); schedulePreview(); });
+    });
+
+    // selects — TomSelect fires native 'change' on underlying <select>
+    ['status','cheque_type','lying_with','customer_id','bank_id','location_id','salesperson_id'].forEach(id => {
+        const el = document.getElementById('f-' + id);
+        if (el) el.addEventListener('change', () => { updateFilterBadge(); schedulePreview(); });
+    });
+
+    // column checkboxes + label rename
+    document.querySelectorAll('#colList .col-check').forEach(el =>
+        el.addEventListener('change', () => { updateColsBadge(); schedulePreview(); })
+    );
+    document.querySelectorAll('#colList .col-label-input').forEach(el =>
+        el.addEventListener('input', () => schedulePreview(1400))
+    );
+
+    // option controls
+    ['opt-date_format','opt-sort_by','opt-sort_dir'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => schedulePreview());
+    });
+    ['opt-include_summary','opt-include_filter_sheet'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => schedulePreview());
+    });
+    document.getElementById('opt-report_title').addEventListener('input', () => schedulePreview(1500));
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+    // f-status TomSelect is already initialised inline (above the select element)
+    updateColsBadge();
+    initDrag();
+    initColorSync();
+    wireListeners();
+
+    // Kick off initial preview after TomSelect settles
+    schedulePreview(500);
+
+    // ── Charts ──────────────────────────────────────────────────────
+    fetch('/reports/api/status-summary').then(r => r.json()).then(data => {
+        const labels  = Object.keys(data).filter(k => data[k].count > 0);
+        const counts  = labels.map(l => data[l].count);
+        const palette = ['#f97316','#3b82f6','#6366f1','#6b7280','#8b5cf6',
+                         '#10b981','#ef4444','#991b1b','#059669','#f59e0b',
+                         '#14b8a6','#64748b','#e11d48'];
+        new Chart(document.getElementById('reportStatusChart'), {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data: counts, backgroundColor: palette.slice(0, labels.length), borderWidth: 0 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '65%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, color: '#94a3b8', font: { family: 'Inter', size: 10 } } },
+                    tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.parsed + ' cheques' } }
+                }
+            }
+        });
+    });
+
+    fetch('/reports/api/monthly-trend').then(r => r.json()).then(data => {
+        new Chart(document.getElementById('reportTrendChart'), {
+            type: 'bar',
+            data: { labels: data.months, datasets: [{ label: 'Cheques', data: data.counts, backgroundColor: 'rgba(99,102,241,0.75)', borderRadius: 6 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.1)' }, ticks: { precision: 0 } }
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Customers — {{ app_name }}{% endblock %}
+{% block page_title %}Customers{% endblock %}
+
+{% block content %}
+<div class="actions-bar">
+    <form method="GET" class="search-inline">
+        <input type="text" name="search" class="form-input form-input-sm" placeholder="Search customers..." value="{{ filters.get('search', '') }}" style="width:220px;">
+        {% if current_user.role != 'Sales' %}
+        <select name="salesperson_id" class="form-input form-input-sm" style="width:170px;" onchange="this.form.submit()">
+            <option value="">All Salespersons</option>
+            {% for sp in salespeople %}
+            <option value="{{ sp.user_id }}" {{ 'selected' if filters.get('salesperson_id')|string == sp.user_id|string }}>{{ sp.full_name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        <label class="checkbox-wrapper checkbox-sm">
+            <input type="checkbox" name="show_inactive" {{ 'checked' if filters.get('show_inactive') == 'on' }} onchange="this.form.submit()">
+            <span class="checkmark"></span>
+            <span>Show Inactive</span>
+        </label>
+        <button type="submit" class="btn btn-sm btn-primary">Search</button>
+    </form>
+    <div class="actions-right">
+        {% if current_user.role in ('Admin', 'Sales', 'Accounts') %}
+        <a href="{{ url_for('customers.create') }}" class="btn btn-sm btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            New Customer
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{% if active_salesperson %}
+<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;padding:.65rem 1rem;background:var(--bg-card-hover);border:1px solid var(--border-color);border-left:3px solid var(--accent-primary);border-radius:.5rem;font-size:.875rem;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--accent-primary);"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    Showing customers for <strong>{{ active_salesperson.full_name }}</strong>
+    <a href="{{ url_for('customers.list_customers') }}" style="margin-left:auto;font-size:.78rem;color:var(--text-muted);">Clear filter ✕</a>
+</div>
+{% endif %}
+
+<div class="content-card">
+    <div class="card-body table-responsive">
+        {% macro sth(label, col) %}
+        {%- set d = 'desc' if (sort_by == col and sort_dir == 'asc') else 'asc' -%}
+        {%- set cls = sort_dir if sort_by == col else '' -%}
+        <a href="?{{ filter_qs }}&sort_by={{ col }}&sort_dir={{ d }}" class="sort-th {{ cls }}">{{ label }}</a>
+        {% endmacro %}
+        {% if customers %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>{{ sth('Code', 'customer_code') }}</th>
+                    <th>{{ sth('Customer Name', 'customer_name') }}</th>
+                    <th>Contact Person</th>
+                    <th>Phone</th>
+                    <th>Salesperson</th>
+                    <th>GST</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in customers %}
+                <tr class="{{ 'row-inactive' if c.is_active == 'N' }}">
+                    <td class="font-mono">{{ c.customer_code }}</td>
+                    <td><strong>{{ c.customer_name }}</strong></td>
+                    <td>{{ c.contact_person or '—' }}</td>
+                    <td>{{ c.contact_phone or '—' }}</td>
+                    <td>
+                        {% if c.salesperson %}
+                        <a href="{{ url_for('customers.list_customers', salesperson_id=c.salesperson.user_id) }}"
+                           style="font-size:.82rem;color:var(--accent-primary);text-decoration:none;white-space:nowrap;"
+                           title="View all customers for {{ c.salesperson.full_name }}">
+                            {{ c.salesperson.full_name }}
+                        </a>
+                        {% else %}
+                        <span style="color:var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="font-mono">{{ c.gst_number or '—' }}</td>
+                    <td>
+                        {% if c.is_active == 'Y' %}
+                        <span class="tag tag-green">Active</span>
+                        {% else %}
+                        <span class="tag tag-gray">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="action-btns">
+                            {% if current_user.role in ('Admin', 'Sales', 'Accounts') %}
+                            <a href="{{ url_for('customers.edit', customer_id=c.customer_id) }}" class="btn btn-xs btn-secondary" title="Edit">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </a>
+                            {% endif %}
+                            {% if current_user.role == 'Admin' %}
+                            <form method="POST" action="{{ url_for('customers.toggle', customer_id=c.customer_id) }}" style="display:inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-xs {{ 'btn-danger' if c.is_active == 'Y' else 'btn-success' }}" title="{{ 'Deactivate' if c.is_active == 'Y' else 'Activate' }}" onclick="return confirm('{{ 'Deactivate' if c.is_active == 'Y' else 'Activate' }} this customer?')">
+                                    {% if c.is_active == 'Y' %}
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                    {% else %}
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                    {% endif %}
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% from 'components/_pagination.html' import pagination_ui %}
+        {%- set _sort_qs = ('&' if filter_qs else '') ~ 'sort_by=' ~ sort_by ~ '&sort_dir=' ~ sort_dir -%}
+        {{ pagination_ui(pagination, filter_qs ~ _sort_qs, per_page=per_page) }}
+        {% else %}
+        <div class="empty-state">
+            <h3>No customers found</h3>
+            <p>Create your first customer to get started.</p>
+            <a href="{{ url_for('customers.create') }}" class="btn btn-primary">Add Customer</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

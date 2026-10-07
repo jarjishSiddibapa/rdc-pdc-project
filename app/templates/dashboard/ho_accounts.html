@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}HO Accounts Dashboard — {{ app_name }}{% endblock %}
+{% block page_title %}HO Accounts Dashboard{% endblock %}
+
+{% block content %}
+{% if locations is defined %}
+<div class="content-card" style="margin-bottom:1rem;padding:.75rem 1rem;">
+    <form method="GET" style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+        <label style="font-weight:600;font-size:.875rem;">Location:</label>
+        <select name="location_id" class="form-input form-input-sm" style="width:auto;min-width:180px;" onchange="this.form.submit()">
+            <option value="">All Locations</option>
+            {% for loc in locations %}
+            <option value="{{ loc.location_id }}" {{ 'selected' if selected_location_id == loc.location_id }}>{{ loc.location_name }}</option>
+            {% endfor %}
+        </select>
+        {% if selected_location_id %}
+        <a href="{{ location_filter_clear_url }}" class="btn btn-xs btn-secondary">Clear</a>
+        {% endif %}
+    </form>
+</div>
+{% endif %}
+<div class="kpi-grid">
+    <div class="kpi-card kpi-purple">
+        <div class="kpi-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+        <div class="kpi-data">
+            <span class="kpi-value" data-count="{{ deposited_cheques }}">0</span>
+            <span class="kpi-label">Deposited (Pending)</span>
+        </div>
+    </div>
+    <div class="kpi-card kpi-green">
+        <div class="kpi-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div class="kpi-data">
+            <span class="kpi-value" data-count="{{ deposited_amount|int }}" data-prefix="₹">₹0</span>
+            <span class="kpi-label">Amount in Bank</span>
+        </div>
+    </div>
+    <div class="kpi-card kpi-blue">
+        <div class="kpi-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <div class="kpi-data">
+            <span class="kpi-value" data-count="{{ cleared_this_month }}">0</span>
+            <span class="kpi-label">Cleared This Month</span>
+        </div>
+    </div>
+    <div class="kpi-card kpi-orange">
+        <div class="kpi-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+        <div class="kpi-data">
+            <span class="kpi-value" data-count="{{ total_cheques }}">0</span>
+            <span class="kpi-label">Total Cheques</span>
+        </div>
+    </div>
+</div>
+
+<div class="content-card">
+    <div class="card-header">
+        <h2 class="card-title">Quick Actions</h2>
+    </div>
+    <div class="card-body">
+        <div class="quick-actions">
+            <a href="{{ url_for('cheques.list_cheques') }}?status=Deposited" class="quick-action-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <span>Reconcile Cheques</span>
+            </a>
+            <a href="{{ url_for('reports.export_cheques') }}?status=Cleared" class="quick-action-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Export Cleared</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="content-card">
+    <div class="card-header">
+        <h2 class="card-title">Recent Cheques</h2>
+        <a href="{{ url_for('cheques.list_cheques') }}" class="btn btn-sm btn-secondary">View All</a>
+    </div>
+    <div class="card-body table-responsive">
+        {% include "components/_cheque_table.html" %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block title %}ERP Sync Status — {{ app_name }}{% endblock %}
+{% block page_title %}ERP Sync{% endblock %}
+
+{% macro _progress_bars(p, running=False) %}
+{% set u_total = p.users_total or 0 %}
+{% set u_done  = p.users_done  or 0 %}
+{% set c_total = p.customers_total or 0 %}
+{% set c_done  = p.customers_done  or 0 %}
+{% set u_pct = ((u_done / u_total * 100) | int) if u_total > 0 else 0 %}
+{% set c_pct = ((c_done / c_total * 100) | int) if c_total > 0 else 0 %}
+{% set fetching = running and u_total == 0 and c_total == 0 %}
+<div style="display:flex;flex-direction:column;gap:1rem;">
+    <!-- Salesreps bar -->
+    <div>
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:.35rem;">
+            <span style="font-weight:600;">Salesreps / Users</span>
+            <span style="color:var(--text-muted);">
+                {% if fetching %}waiting for Oracle…
+                {% else %}{{ u_done }} / {{ u_total }}{% if u_total > 0 %} &nbsp;·&nbsp; {{ u_pct }}%{% endif %}{% endif %}
+            </span>
+        </div>
+        <div style="background:var(--border-color);border-radius:99px;height:10px;overflow:hidden;">
+            {% if fetching %}
+            <div class="bar-indeterminate" style="height:100%;border-radius:99px;background:#f97316;"></div>
+            {% else %}
+            <div style="height:100%;border-radius:99px;background:#f97316;width:{{ u_pct }}%;transition:width .4s ease;"></div>
+            {% endif %}
+        </div>
+    </div>
+    <!-- Customers bar -->
+    <div>
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:.35rem;">
+            <span style="font-weight:600;">Customers</span>
+            <span style="color:var(--text-muted);">
+                {% if fetching %}waiting for Oracle…
+                {% else %}{{ c_done }} / {{ c_total }}{% if c_total > 0 %} &nbsp;·&nbsp; {{ c_pct }}%{% endif %}{% endif %}
+            </span>
+        </div>
+        <div style="background:var(--border-color);border-radius:99px;height:10px;overflow:hidden;">
+            {% if fetching %}
+            <div class="bar-indeterminate" style="height:100%;border-radius:99px;background:#10b981;"></div>
+            {% else %}
+            <div style="height:100%;border-radius:99px;background:#10b981;width:{{ c_pct }}%;transition:width .4s ease;"></div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro _log_panel(logs, running=False) %}
+<div style="background:#0f172a;border-radius:.5rem;padding:.75rem 1rem;font-family:monospace;font-size:.78rem;line-height:1.6;max-height:360px;overflow-y:auto;" id="logPanel">
+    {% for entry in logs %}
+    {% if entry.type == 'success' %}
+    <div style="color:#4ade80;"><span style="color:#64748b;">{{ entry.time }}</span>  ✓ {{ entry.msg }}</div>
+    {% elif entry.type == 'warn' %}
+    <div style="color:#fbbf24;"><span style="color:#64748b;">{{ entry.time }}</span>  ⚠ {{ entry.msg }}</div>
+    {% elif entry.type == 'error' %}
+    <div style="color:#f87171;"><span style="color:#64748b;">{{ entry.time }}</span>  ✗ {{ entry.msg }}</div>
+    {% else %}
+    <div style="color:#94a3b8;"><span style="color:#64748b;">{{ entry.time }}</span>  · {{ entry.msg }}</div>
+    {% endif %}
+    {% endfor %}
+    {% if running %}
+    <div style="color:#64748b;">▌</div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+{% if sync.running %}
+<script>
+// Poll every 5 s — works even in background tabs (unlike meta refresh)
+// Mark as internal navigation BEFORE reload so pagehide beacon doesn't fire.
+var _poll = setInterval(function () {
+    sessionStorage.setItem('_rdcnav', '1');
+    window.location.reload();
+}, 5000);
+
+// Reload immediately the moment the user switches back to this tab
+document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) {
+        clearInterval(_poll);
+        sessionStorage.setItem('_rdcnav', '1');
+        window.location.reload();
+    }
+});
+</script>
+{% endif %}
+<div class="content-card" style="max-width:680px;">
+    <div class="card-header">
+        <h2 class="card-title">ERP Sync — Status</h2>
+    </div>
+    <div class="card-body">
+
+        {% if sync.running %}
+        <!-- ── Running ── -->
+
+        <!-- Status header -->
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;">
+            <div class="sync-spinner" style="flex-shrink:0;"></div>
+            <div>
+                <div style="font-weight:600;font-size:1rem;">
+                    Sync in progress…
+                    <span id="elapsedBadge" style="display:inline-block;margin-left:.5rem;font-size:.75rem;font-weight:500;color:var(--text-muted);background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:99px;padding:.1rem .55rem;">0s</span>
+                </div>
+                <div style="font-size:.8rem;color:var(--text-muted);margin-top:.15rem;">
+                    Page refreshes every 5 s.{% if sync.started_at %} Started at {{ sync.started_at.strftime('%H:%M:%S') }} IST.{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Cycling fact card ───────────────────────────────────────── -->
+        <div id="funFact" style="margin-bottom:1.25rem;padding:.85rem 1.1rem;background:var(--bg-card-hover);border:1px solid var(--border-color);border-left:3px solid var(--accent-primary);border-radius:.5rem;font-size:.85rem;color:var(--text-secondary);transition:opacity .45s ease;">
+            <div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:.35rem;">Did you know?</div>
+            <span id="factText"></span>
+        </div>
+        <!-- ─────────────────────────────────────────────────────────────── -->
+
+        {{ _progress_bars(sync.progress, running=True) }}
+
+        {% if sync.logs %}
+        <div style="margin-top:1.25rem;">{{ _log_panel(sync.logs, running=True) }}</div>
+        {% endif %}
+
+        {% elif sync.error %}
+        <!-- ── Failed ── -->
+        <div style="padding:1rem 1.25rem;background:#fef2f2;border-left:4px solid #ef4444;border-radius:.4rem;margin-bottom:1.5rem;">
+            <div style="font-weight:700;color:#991b1b;margin-bottom:.35rem;">Sync failed</div>
+            <div style="font-size:.875rem;color:#7f1d1d;">{{ sync.error }}</div>
+        </div>
+        <a href="{{ url_for('erp_sync.index') }}" class="btn btn-secondary">← Back to ERP Sync</a>
+
+        {% elif sync.result %}
+        <!-- ── Completed ── -->
+        {% set r = sync.result %}
+        {{ _progress_bars({'users_total': r.user_created + r.user_updated,
+                           'users_done':  r.user_created + r.user_updated,
+                           'customers_total': r.cust_created + r.cust_updated,
+                           'customers_done':  r.cust_created + r.cust_updated}) }}
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-top:1.5rem;margin-bottom:1.5rem;">
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:.625rem;padding:1rem 1.25rem;">
+                <div style="font-size:1.5rem;font-weight:800;color:#10b981;">{{ r.cust_created }}</div>
+                <div style="font-size:.8rem;color:var(--text-muted);">Customers Created</div>
+            </div>
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:.625rem;padding:1rem 1.25rem;">
+                <div style="font-size:1.5rem;font-weight:800;color:#6366f1;">{{ r.cust_updated }}</div>
+                <div style="font-size:.8rem;color:var(--text-muted);">Customers Updated</div>
+            </div>
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:.625rem;padding:1rem 1.25rem;">
+                <div style="font-size:1.5rem;font-weight:800;color:#f97316;">{{ r.user_created }}</div>
+                <div style="font-size:.8rem;color:var(--text-muted);">Salesreps Created (Inactive)</div>
+            </div>
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:.625rem;padding:1rem 1.25rem;">
+                <div style="font-size:1.5rem;font-weight:800;color:#8b5cf6;">{{ r.user_updated }}</div>
+                <div style="font-size:.8rem;color:var(--text-muted);">Salesreps Updated</div>
+            </div>
+        </div>
+
+        {% if r.user_created > 0 %}
+        <div style="padding:.75rem 1rem;background:#fff7ed;border-left:4px solid #f97316;border-radius:.4rem;margin-bottom:1rem;font-size:.875rem;">
+            <strong>{{ r.user_created }} new salesrep(s) imported.</strong>
+            They are <strong>inactive</strong> — go to <a href="{{ url_for('admin.users') }}?show_inactive=on" style="color:#c2410c;">User Management</a> to assign a location, set a password, and activate each one.
+        </div>
+        {% endif %}
+
+        {% if r.errors %}
+        <div style="padding:.75rem 1rem;background:#fef2f2;border-left:4px solid #ef4444;border-radius:.4rem;margin-bottom:1rem;">
+            <div style="font-weight:600;margin-bottom:.4rem;color:#991b1b;">{{ r.errors|length }} error(s):</div>
+            <ul style="margin:0 0 0 1rem;font-size:.8rem;color:#991b1b;">
+                {% for e in r.errors %}<li>{{ e }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if sync.logs %}
+        <div style="margin-top:1.25rem;">{{ _log_panel(sync.logs, running=False) }}</div>
+        {% endif %}
+
+        <div style="display:flex;gap:.75rem;margin-top:1rem;">
+            <a href="{{ url_for('erp_sync.index') }}" class="btn btn-secondary">← Back to ERP Sync</a>
+            <a href="{{ url_for('admin.users') }}" class="btn btn-primary">Go to User Management</a>
+        </div>
+
+        {% else %}
+        <!-- ── No sync run yet ── -->
+        <p style="color:var(--text-muted);">No sync has been run yet.</p>
+        <a href="{{ url_for('erp_sync.index') }}" class="btn btn-secondary">← Back to ERP Sync</a>
+        {% endif %}
+
+    </div>
+</div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+.sync-spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+}
+@keyframes shimmer {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(500%);  }
+}
+.bar-indeterminate {
+    width: 22%;
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+</style>
+
+<script>
+(function () {
+    // ── Scroll log to bottom ────────────────────────────────────────
+    var panel = document.getElementById('logPanel');
+    if (panel) panel.scrollTop = panel.scrollHeight;
+
+    // ── Elapsed timer (client-side, ticks every second) ────────────
+    {% if sync.running and sync.started_at %}
+    var badge = document.getElementById('elapsedBadge');
+    if (badge) {
+        var startMs = {{ (sync.started_at.timestamp() * 1000) | int }};
+        function updateElapsed() {
+            var secs = Math.floor((Date.now() - startMs) / 1000);
+            var m = Math.floor(secs / 60), s = secs % 60;
+            badge.textContent = m > 0 ? m + 'm ' + s + 's' : s + 's';
+        }
+        updateElapsed();
+        setInterval(updateElapsed, 1000);
+    }
+    {% endif %}
+
+    // ── Fun facts rotator ───────────────────────────────────────────
+    var facts = [
+        "RDC Readymix Concrete supplies high-quality concrete across multiple cities in India, ensuring every pour meets structural specifications.",
+        "A transit mixer drum rotates at 1–2 RPM while in transit to keep concrete homogeneous and prevent premature setting.",
+        "Concrete is the most widely used construction material in the world — over 10 billion tonnes are produced every year.",
+        "Ready-mix concrete reduces on-site waste significantly compared to site-mixed concrete, cutting material costs by up to 15%.",
+        "A single RDC transit mixer drum can carry up to 7–8 cubic metres of concrete — enough to pour an average residential floor slab.",
+        "Concrete gains compressive strength over decades. Properly cured concrete at 28 days is only the beginning of its strength journey.",
+        "Post-dated cheques (PDCs) are one of the most common payment instruments in Indian B2B construction transactions.",
+        "In infrastructure projects, delayed cheque clearance can directly impact the working capital cycle of concrete suppliers.",
+        "The slump test measures concrete workability — a slump of 75–100 mm is typical for RDC's standard pumped concrete mix.",
+        "India's construction sector contributes around 9% of GDP and is the second-largest employer in the country.",
+        "Ready-mix concrete eliminates the need for on-site batching plants, reducing labour costs and ensuring consistent mix quality.",
+        "M25 grade concrete (25 N/mm² characteristic strength) is the most commonly specified grade for residential construction in India.",
+        "Effective accounts receivable management can improve a concrete company's cash conversion cycle by 20–30 days.",
+        "A bounced cheque in India under the Negotiable Instruments Act can attract legal proceedings under Section 138.",
+        "Water-cement ratio is the single biggest factor affecting concrete strength — lower ratio means stronger concrete.",
+        "RDC operates a fleet of transit mixers equipped with GPS tracking to ensure on-time delivery to project sites.",
+        "Concrete curing — keeping it moist for at least 7 days — can increase final strength by up to 30%.",
+        "In the construction industry, DSO (Days Sales Outstanding) is a critical metric — every day counts in cash flow.",
+        "Fly ash and GGBS (Ground Granulated Blast-furnace Slag) are used in RDC mixes to improve durability and reduce carbon footprint.",
+        "Reinforced concrete combines concrete's compressive strength with steel's tensile strength — the foundation of modern construction.",
+        "Timely payment collection is as critical as timely concrete delivery — both keep the project on schedule.",
+        "Admixtures like superplasticisers allow RDC to deliver high-workability concrete even in traffic-heavy urban deliveries.",
+    ];
+
+    var factEl  = document.getElementById('factText');
+    var factBox = document.getElementById('funFact');
+    if (factEl && factBox) {
+        var idx = Math.floor(Math.random() * facts.length);
+        factEl.textContent = facts[idx];
+        setInterval(function () {
+            factBox.style.opacity = '0';
+            setTimeout(function () {
+                idx = (idx + 1) % facts.length;
+                factEl.textContent = facts[idx];
+                factBox.style.opacity = '1';
+            }, 450);
+        }, 5000);
+    }
+})();
+</script>
+{% endblock %}

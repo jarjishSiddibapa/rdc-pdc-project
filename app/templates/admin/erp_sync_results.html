@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}ERP Sync Results — {{ app_name }}{% endblock %}
+{% block page_title %}ERP Sync Results{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:700px;">
+    <div class="card-header">
+        <h2 class="card-title">Sync Complete</h2>
+    </div>
+    <div class="card-body">
+
+        <!-- Summary tiles -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:.625rem;padding:1rem 1.25rem;">
+                <div style="font-size:1.5rem;font-weight:800;color:#10b981;">{{ result.cust_created }}</div>
+                <div style="font-size:.8rem;color:var(--text-muted);">Customers Created</div>
+            </div>
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:.625rem;padding:1rem 1.25rem;">
+                <div style="font-size:1.5rem;font-weight:800;color:#6366f1;">{{ result.cust_updated }}</div>
+                <div style="font-size:.8rem;color:var(--text-muted);">Customers Updated</div>
+            </div>
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:.625rem;padding:1rem 1.25rem;">
+                <div style="font-size:1.5rem;font-weight:800;color:#0ea5e9;">{{ result.get('loc_created', 0) }}</div>
+                <div style="font-size:.8rem;color:var(--text-muted);">Locations Auto-Created</div>
+            </div>
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:.625rem;padding:1rem 1.25rem;">
+                <div style="font-size:1.5rem;font-weight:800;color:#f97316;">{{ result.user_created }}</div>
+                <div style="font-size:.8rem;color:var(--text-muted);">Salesreps Created (Inactive)</div>
+            </div>
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border-color);border-radius:.625rem;padding:1rem 1.25rem;">
+                <div style="font-size:1.5rem;font-weight:800;color:#8b5cf6;">{{ result.user_updated }}</div>
+                <div style="font-size:.8rem;color:var(--text-muted);">Salesreps Updated</div>
+            </div>
+        </div>
+
+        {% if result.get('loc_created', 0) > 0 %}
+        <div style="padding:.75rem 1rem;background:#f0f9ff;border-left:4px solid #0ea5e9;border-radius:.4rem;margin-bottom:1rem;font-size:.875rem;">
+            <strong>{{ result.get('loc_created') }} new location(s) added to Location Master</strong>
+            from ERP city data. Review them in
+            <a href="{{ url_for('admin.locations') }}" style="color:#0284c7;">Location Master</a>
+            and assign them to a region if needed.
+        </div>
+        {% endif %}
+
+        {% if result.user_created > 0 %}
+        <div style="padding:.75rem 1rem;background:#fff7ed;border-left:4px solid #f97316;border-radius:.4rem;margin-bottom:1rem;font-size:.875rem;">
+            <strong>{{ result.user_created }} new salesrep(s) imported.</strong>
+            They are <strong>inactive</strong> — go to User Management to assign location, set password, and activate each one.
+        </div>
+        {% endif %}
+
+        {% if result.errors %}
+        <div style="padding:.75rem 1rem;background:#fef2f2;border-left:4px solid #ef4444;border-radius:.4rem;margin-bottom:1rem;">
+            <div style="font-weight:600;margin-bottom:.4rem;">{{ result.errors|length }} error(s):</div>
+            <ul style="margin:0 0 0 1rem;font-size:.8rem;color:#991b1b;">
+                {% for e in result.errors %}<li>{{ e }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div style="display:flex;gap:.75rem;margin-top:1rem;">
+            <a href="{{ url_for('erp_sync.index') }}" class="btn btn-secondary">← Back to ERP Sync</a>
+            <a href="{{ url_for('admin.users') }}" class="btn btn-primary">Go to User Management</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

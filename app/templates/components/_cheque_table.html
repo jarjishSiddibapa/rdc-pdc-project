@@ -1,0 +1,42 @@
+<!-- Reusable cheque table component -->
+{% if recent_cheques %}
+<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>UID</th>
+            <th>Customer</th>
+            <th>Cheque #</th>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Lying With</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for cheque in recent_cheques %}
+        <tr>
+            <td><a href="{{ url_for('cheques.detail', cheque_id=cheque.cheque_id) }}" class="link-primary">{{ cheque.uid }}</a></td>
+            <td>{{ cheque.customer.customer_name if cheque.customer else '—' }}</td>
+            <td>{{ cheque.cheque_number }}</td>
+            <td>{{ cheque.cheque_date.strftime('%d %b %Y') if cheque.cheque_date else '—' }}</td>
+            <td class="text-right"><strong>{{ cheque.amount_display }}</strong></td>
+            <td><span class="status-badge" style="--badge-color:{{ cheque.status_color }}">{{ cheque.status }}</span></td>
+            <td>{% if cheque.status not in ('Cleared', 'Cleared via NEFT', 'Legal Notice Initiated', 'New Cheque Received', 'Order Cancelled', 'Resolved') %}{{ cheque.lying_with }}{% endif %}</td>
+            <td>
+                <a href="{{ url_for('cheques.detail', cheque_id=cheque.cheque_id) }}" class="btn btn-xs btn-secondary" title="View">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>{# end scroll wrapper #}
+{% else %}
+<div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    <p>No cheques found</p>
+</div>
+{% endif %}

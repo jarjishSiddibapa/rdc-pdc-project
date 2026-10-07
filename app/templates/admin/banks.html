@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Bank Master — {{ app_name }}{% endblock %}
+{% block page_title %}Bank Master{% endblock %}
+
+{% block content %}
+<div class="actions-bar">
+    <form method="GET" class="search-inline">
+        <input type="text" name="search" class="form-input form-input-sm"
+               placeholder="Search banks…" value="{{ search }}" style="width:220px;">
+        <button type="submit" class="btn btn-sm btn-primary">Search</button>
+        {% if search %}
+        <a href="{{ url_for('admin.banks') }}" class="btn btn-sm btn-secondary">Clear</a>
+        {% endif %}
+    </form>
+    <a href="{{ url_for('admin.create_bank') }}" class="btn btn-sm btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Add Bank
+    </a>
+</div>
+
+<div class="content-card">
+    <div class="card-body table-responsive">
+        {% if banks %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Bank Name</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in banks %}
+                <tr class="{{ 'row-inactive' if b.is_active == 'N' }}">
+                    <td><strong>{{ b.bank_name }}</strong></td>
+                    <td>
+                        {% if b.is_active == 'Y' %}
+                        <span class="tag tag-green">Active</span>
+                        {% else %}
+                        <span class="tag tag-gray">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="action-btns">
+                            <a href="{{ url_for('admin.edit_bank', bank_id=b.bank_id) }}"
+                               class="btn btn-xs btn-secondary" title="Edit">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </a>
+                            <form method="POST" action="{{ url_for('admin.toggle_bank', bank_id=b.bank_id) }}" style="display:inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="btn btn-xs {{ 'btn-danger' if b.is_active == 'Y' else 'btn-success' }}"
+                                        onclick="return confirm('{{ 'Deactivate' if b.is_active == 'Y' else 'Activate' }} {{ b.bank_name }}?')">
+                                    {{ 'Deactivate' if b.is_active == 'Y' else 'Activate' }}
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% from 'components/_pagination.html' import pagination_ui %}
+        {{ pagination_ui(pagination, filter_qs, per_page=per_page) }}
+
+        {% else %}
+        <div class="empty-state">
+            {% if search %}
+            <h3>No banks match "{{ search }}"</h3>
+            <a href="{{ url_for('admin.banks') }}" class="btn btn-secondary">Clear search</a>
+            {% else %}
+            <h3>No banks added yet</h3>
+            <a href="{{ url_for('admin.create_bank') }}" class="btn btn-primary">Add First Bank</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

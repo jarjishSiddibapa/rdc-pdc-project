@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RDC PDC Manager — Post-Dated Cheque Management System">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <!-- ─── FOUC Prevention: apply saved theme before any paint ─── -->
+    <script>(function(){try{var t=localStorage.getItem('rdc-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();</script>
+    <!-- ─── Fonts ─────────────────────────────────────────────── -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- ─── CDN preconnect ─────────────────────────────────────── -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- ─── Styles ─────────────────────────────────────────────── -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css">
+    <!-- ─── Scripts (loaded before body so Chart.js is ready) ─── -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Skip-nav for keyboard users -->
+    <a class="skip-nav" href="#main-content">Skip to main content</a>
+
+    {% if current_user.is_authenticated %}
+    <!-- ─── SIDEBAR ──────────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-title">RDC PDC</span>
+                    <span class="logo-subtitle">Manager</span>
+                </div>
+            </div>
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" aria-expanded="true" aria-controls="sidebar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <span class="nav-section-title">Main</span>
+                <a href="{{ url_for('dashboard.index') }}" data-tooltip="Dashboard" class="nav-link {% if request.path == '/' or '/dashboard' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    <span>Dashboard</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <span class="nav-section-title">Cheques</span>
+                {% if current_user.role == 'Sales' %}
+                <a href="{{ url_for('cheques.create') }}" data-tooltip="New Cheque" class="nav-link {% if '/cheques/create' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                    <span>New Cheque</span>
+                </a>
+                {% endif %}
+                <a href="{{ url_for('cheques.list_cheques') }}" data-tooltip="All Cheques" class="nav-link {% if request.path == '/cheques/' or request.path == '/cheques' %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>All Cheques</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <span class="nav-section-title">Management</span>
+                <a href="{{ url_for('customers.list_customers') }}" data-tooltip="Customers" class="nav-link {% if '/customers' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span>Customers</span>
+                </a>
+                <a href="{{ url_for('reports.index') }}" data-tooltip="Reports" class="nav-link {% if '/reports' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    <span>Reports</span>
+                </a>
+                <a href="{{ url_for('notifications.list_notifications') }}" data-tooltip="Notifications" class="nav-link {% if '/notifications' in request.path %}active{% endif %}" style="position:relative;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    <span>Notifications</span>
+                    <span id="sidebarNotifBadge" style="display:none;margin-left:auto;background:var(--danger,#ef4444);color:#fff;font-size:.65rem;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:none;align-items:center;justify-content:center;padding:0 4px;line-height:1;"></span>
+                </a>
+            </div>
+
+            {% if current_user.role == 'Admin' %}
+            <div class="nav-section">
+                <span class="nav-section-title">Admin</span>
+                <a href="{{ url_for('admin.users') }}" data-tooltip="Users" class="nav-link {% if '/admin/users' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                    <span>User Management</span>
+                </a>
+                <a href="{{ url_for('admin.banks') }}" data-tooltip="Banks" class="nav-link {% if '/admin/banks' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M5 6l7-3 7 3"/><path d="M4 10v11"/><path d="M20 10v11"/><path d="M8 14v3"/><path d="M12 14v3"/><path d="M16 14v3"/></svg>
+                    <span>Bank Master</span>
+                </a>
+                <a href="{{ url_for('admin.locations') }}" data-tooltip="Locations" class="nav-link {% if '/admin/locations' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span>Location Master</span>
+                </a>
+                <a href="{{ url_for('admin.email_settings') }}" data-tooltip="Email" class="nav-link {% if '/admin/email' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Email Settings</span>
+                </a>
+                <a href="{{ url_for('erp_sync.index') }}" data-tooltip="ERP Sync" class="nav-link {% if '/erp-sync' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+                    <span>ERP Sync</span>
+                </a>
+                <a href="{{ url_for('admin.audit_logs') }}" data-tooltip="Audit Logs" class="nav-link {% if '/admin/audit' in request.path %}active{% endif %}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+                    <span>Audit Logs</span>
+                </a>
+            </div>
+            {% endif %}
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-card">
+                {% if current_user.profile_picture %}
+                <div class="user-avatar" style="background:transparent;padding:0;overflow:hidden;">
+                    <img src="{{ url_for('cheques.serve_upload', filename=current_user.profile_picture) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                </div>
+                {% else %}
+                <div class="user-avatar" style="background:{{ current_user.avatar_color or '#6366f1' }}">
+                    {{ current_user.initials }}
+                </div>
+                {% endif %}
+                <div class="user-info">
+                    <span class="user-name">{{ current_user.full_name }}</span>
+                    <span class="user-role">{{ current_user.role_display }}</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ─── MAIN CONTENT ────────────────────────────── -->
+    <div class="main-wrapper" id="mainWrapper">
+        <!-- Top Navbar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="mobile-toggle" id="mobileToggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <div class="page-title">
+                    <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+                    {% block breadcrumb %}{% endblock %}
+                </div>
+            </div>
+            <div class="topbar-right">
+                <!-- Theme Toggle -->
+                <button class="topbar-btn" id="themeToggle" aria-label="Switch to light mode">
+                    <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
+
+                <!-- Notifications -->
+                <div class="notification-wrapper" id="notificationWrapper">
+                    <button class="topbar-btn notification-btn" id="notificationBtn" aria-label="Notifications" aria-expanded="false" aria-haspopup="true" aria-controls="notifDropdown">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                        <span class="notification-badge" id="notifBadge" style="display:none;" aria-live="polite" aria-atomic="true">0</span>
+                    </button>
+                    <div class="notification-dropdown" id="notifDropdown" role="dialog" aria-label="Notifications panel">
+                        <div class="notif-header">
+                            <h3>Notifications</h3>
+                            <button class="notif-mark-all" id="markAllRead">Mark all read</button>
+                        </div>
+                        <div class="notif-list" id="notifList">
+                            <div class="notif-empty">No notifications</div>
+                        </div>
+                        <a href="{{ url_for('notifications.list_notifications') }}" class="notif-view-all">View All Notifications</a>
+                    </div>
+                </div>
+
+                <!-- User Menu -->
+                <div class="user-menu-wrapper" id="userMenuWrapper">
+                    <button class="topbar-btn user-menu-btn" id="userMenuBtn" aria-label="User menu for {{ current_user.full_name }}" aria-expanded="false" aria-haspopup="true" aria-controls="userDropdown">
+                        {% if current_user.profile_picture %}
+                        <div class="topbar-avatar" style="background:transparent;padding:0;overflow:hidden;">
+                            <img src="{{ url_for('cheques.serve_upload', filename=current_user.profile_picture) }}" alt="{{ current_user.full_name }}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                        </div>
+                        {% else %}
+                        <div class="topbar-avatar" style="background:{{ current_user.avatar_color or '#6366f1' }}" aria-hidden="true">
+                            {{ current_user.initials }}
+                        </div>
+                        {% endif %}
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="user-dropdown" id="userDropdown" role="menu" aria-label="User account options">
+                        <div class="user-dropdown-header">
+                            <span class="dropdown-name">{{ current_user.full_name }}</span>
+                            <span class="dropdown-role">{{ current_user.role_display }}</span>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="{{ url_for('profile.index') }}" class="dropdown-item" role="menuitem">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            My Profile
+                        </a>
+                        <a href="{{ url_for('auth.change_password') }}" class="dropdown-item" role="menuitem">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            Change Password
+                        </a>
+                        <div class="dropdown-divider" role="separator"></div>
+                        <a href="{{ url_for('auth.logout') }}" class="dropdown-item dropdown-item-danger" role="menuitem">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                            Sign Out
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-container" id="flashContainer">
+            {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}" data-auto-dismiss="5000">
+                <div class="flash-icon">
+                    {% if category == 'success' %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    {% elif category == 'danger' %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    {% elif category == 'warning' %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    {% else %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    {% endif %}
+                </div>
+                <span class="flash-text">{{ message }}</span>
+                <button class="flash-close" onclick="this.parentElement.remove()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Page Content -->
+        <main class="main-content" id="main-content" tabindex="-1">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- Footer -->
+        <footer class="main-footer">
+            <span>Made with <span class="heart">❤</span> by Jarjish</span>
+            <span class="footer-sep">|</span>
+            <span>Powered by <strong>RDC IT Team</strong></span>
+        </footer>
+    </div>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- ─── Session Timeout Warning Modal ───────────────────────────── -->
+    <div id="session-warn-modal" role="alertdialog" aria-modal="true" aria-labelledby="session-warn-title">
+        <div class="session-warn-box">
+            <div class="session-warn-icon">⏱️</div>
+            <div class="session-warn-title" id="session-warn-title">Session Expiring Soon</div>
+            <div class="session-warn-body">
+                You have been inactive. Your session will expire in
+                <span class="session-warn-countdown" id="session-countdown">60</span> seconds.
+            </div>
+            <div class="session-warn-actions">
+                <button class="btn btn-primary" onclick="window._rdcKeepAlive()">Keep Me Logged In</button>
+                <button class="btn btn-secondary" onclick="window._rdcLogoutNow()">Log Out Now</button>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Unauthenticated (login page) -->
+    {% block auth_content %}{% endblock %}
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+    <script defer>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('select.ts-select').forEach(function (el) {
+            // Already initialised (e.g. inline custom config)
+            if (el.tomselect) return;
+
+            var isMulti = el.hasAttribute('multiple');
+
+            if (isMulti) {
+                // Multi-select: checkbox plugin + tags, clear button, search
+                new TomSelect(el, {
+                    plugins: ['checkbox_options', 'remove_button', 'clear_button'],
+                    allowEmptyOption: false,
+                    placeholder: el.dataset.placeholder || 'Select…',
+                    closeAfterSelect: false,   // keep dropdown open while picking
+                    hideSelected: false,
+                    render: {
+                        option: function(data, escape) {
+                            return '<div class="ts-option-check">' + escape(data.text) + '</div>';
+                        }
+                    }
+                });
+            } else {
+                // Single-select: search enabled, clear button
+                new TomSelect(el, {
+                    plugins: ['clear_button'],
+                    allowEmptyOption: true,
+                    placeholder: el.dataset.placeholder || '— Select —',
+                });
+            }
+        });
+    });
+    </script>
+
+    {% if current_user.is_authenticated %}
+    <script>
+    /* ── RDC Session Security ── */
+    (function () {
+        var TIMEOUT_MS   = 10 * 60 * 1000;  // 10 minutes — match server SESSION_TIMEOUT_MINUTES
+        var WARN_BEFORE  = 60 * 1000;        // show warning 60 s before expiry
+        var WARN_AT      = TIMEOUT_MS - WARN_BEFORE;  // 9 minutes
+        var HEARTBEAT_MS = 4 * 60 * 1000;   // ping server every 4 min for active users
+
+        var warnTimer, logoutTimer, countdownInterval;
+
+        /* ── Activity tracking ─────────────────────────── */
+        var EVENTS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+        EVENTS.forEach(function (evt) {
+            document.addEventListener(evt, onActivity, { passive: true, capture: true });
+        });
+
+        function onActivity() {
+            var modal = document.getElementById('session-warn-modal');
+            if (modal && modal.style.display === 'flex') {
+                _hideModal();
+            }
+            _resetTimers();
+        }
+
+        function _resetTimers() {
+            clearTimeout(warnTimer);
+            clearTimeout(logoutTimer);
+            clearInterval(countdownInterval);
+            warnTimer   = setTimeout(_showWarning, WARN_AT);
+            logoutTimer = setTimeout(_forceLogout,  TIMEOUT_MS);
+        }
+
+        /* ── Warning modal ─────────────────────────────── */
+        function _showWarning() {
+            var modal = document.getElementById('session-warn-modal');
+            if (!modal) return;
+            var secs = Math.round(WARN_BEFORE / 1000);
+            var el = document.getElementById('session-countdown');
+            if (el) el.textContent = secs;
+            modal.style.display = 'flex';
+            countdownInterval = setInterval(function () {
+                secs--;
+                var el = document.getElementById('session-countdown');
+                if (el) el.textContent = secs;
+                if (secs <= 0) { clearInterval(countdownInterval); _forceLogout(); }
+            }, 1000);
+        }
+
+        function _hideModal() {
+            var modal = document.getElementById('session-warn-modal');
+            if (modal) modal.style.display = 'none';
+            clearInterval(countdownInterval);
+        }
+
+        function _forceLogout() {
+            clearTimeout(warnTimer);
+            clearTimeout(logoutTimer);
+            clearInterval(countdownInterval);
+            window.location.href = '{{ url_for("auth.logout") }}';
+        }
+
+        /* ── Public API for modal buttons ──────────────── */
+        window._rdcKeepAlive = function () {
+            _hideModal();
+            fetch('{{ url_for("auth.heartbeat") }}', { credentials: 'same-origin' })
+                .then(function (r) { if (r.ok) { _resetTimers(); } else { _forceLogout(); } })
+                .catch(function () { _forceLogout(); });
+        };
+        window._rdcLogoutNow = function () {
+            clearTimeout(warnTimer);
+            clearTimeout(logoutTimer);
+            clearInterval(countdownInterval);
+            window.location.href = '{{ url_for("auth.logout") }}';
+        };
+
+        /* ── Periodic heartbeat for genuinely active users ─ */
+        setInterval(function () {
+            var modal = document.getElementById('session-warn-modal');
+            if (!modal || modal.style.display !== 'flex') {
+                /* Only ping when warning is NOT showing (user is still active) */
+                fetch('{{ url_for("auth.heartbeat") }}', { credentials: 'same-origin' })
+                    .catch(function () {});
+            }
+        }, HEARTBEAT_MS);
+
+        /* ── Tab-close detection ───────────────────────── */
+        /* Any user click or form submit = internal navigation, not a tab close.
+           We mark ALL clicks (not just anchors) because buttons, JS-driven
+           navigations, and downloads also unload the page via pagehide. */
+        document.addEventListener('click', function () {
+            sessionStorage.setItem('_rdcnav', '1');
+        }, true);
+        document.addEventListener('submit', function () {
+            sessionStorage.setItem('_rdcnav', '1');
+        }, true);
+        window.addEventListener('pageshow', function () {
+            sessionStorage.removeItem('_rdcnav');
+        });
+        window.addEventListener('pagehide', function (e) {
+            if (!e.persisted && !sessionStorage.getItem('_rdcnav')) {
+                /* Tab/window is being closed — log out server-side */
+                navigator.sendBeacon('{{ url_for("auth.logout_beacon") }}');
+            }
+        });
+
+        /* ── Kick off timers ────────────────────────────── */
+        _resetTimers();
+    })();
+    </script>
+    {% endif %}
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

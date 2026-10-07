@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Select Resolution — {{ app_name }}{% endblock %}
+{% block page_title %}Select Resolution{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:600px;">
+    <div class="card-header">
+        <h2 class="card-title">{{ cheque.uid }} — Bounced Cheque</h2>
+        <span class="status-badge" style="--badge-color:{{ cheque.status_color }}">{{ cheque.status }}</span>
+    </div>
+
+    <div class="card-body">
+        <div class="detail-grid detail-grid-compact">
+            <div class="detail-item"><span class="detail-label">Customer</span><span class="detail-value">{{ cheque.customer.customer_name }}</span></div>
+            <div class="detail-item"><span class="detail-label">Amount</span><span class="detail-value detail-amount">{{ cheque.amount_display }}</span></div>
+            <div class="detail-item"><span class="detail-label">Cheque #</span><span class="detail-value font-mono">{{ cheque.cheque_number }}</span></div>
+            <div class="detail-item"><span class="detail-label">Bank</span><span class="detail-value">{{ cheque.bank.display_name if cheque.bank else cheque.bank_name or '—' }}</span></div>
+        </div>
+    </div>
+
+    <form method="POST" class="form-body" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <p class="form-section-label" style="margin-bottom:1rem;font-weight:600;">Choose how this bounced cheque should be resolved:</p>
+
+        <div class="resolution-options">
+            <label class="resolution-option" for="res-legal">
+                <input type="radio" id="res-legal" name="resolution_type" value="LEGAL" required>
+                <div class="resolution-option-body">
+                    <div class="resolution-option-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Legal Notice Initiated
+                    </div>
+                    <div class="resolution-option-desc">Forward to legal team. This is a terminal action — no further cheque activity.</div>
+                </div>
+            </label>
+
+            <label class="resolution-option" for="res-neft">
+                <input type="radio" id="res-neft" name="resolution_type" value="NEFT" required>
+                <div class="resolution-option-body">
+                    <div class="resolution-option-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                        NEFT Received
+                    </div>
+                    <div class="resolution-option-desc">Customer paid via bank transfer. Status becomes "Cleared via NEFT" — terminal action.</div>
+                </div>
+            </label>
+
+            <label class="resolution-option" for="res-redeploy">
+                <input type="radio" id="res-redeploy" name="resolution_type" value="REDEPLOY" required>
+                <div class="resolution-option-body">
+                    <div class="resolution-option-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.49"/></svg>
+                        Redeposit Cheque
+                    </div>
+                    <div class="resolution-option-desc">Re-present the cheque for deposit. Returns to Accepted state so Accounts can re-deposit.</div>
+                </div>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="remarks" class="form-label">Remarks <span class="required">*</span></label>
+            <textarea id="remarks" name="remarks" class="form-input form-textarea" rows="3"
+                      placeholder="Add relevant notes (required)..." required></textarea>
+            <span class="field-error" id="err-remarks" style="display:none;">Remarks are required.</span>
+        </div>
+
+        <div class="form-group">
+            <label for="supporting_doc" class="form-label">
+                Supporting Document <span class="required">*</span>
+            </label>
+            <input type="file" id="supporting_doc" name="supporting_doc" class="form-input"
+                   accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv" required>
+            <span class="field-hint" style="font-size:.8rem;color:var(--text-muted);margin-top:.25rem;display:block;">
+                Accepted: PDF, images (PNG/JPG), Excel, CSV
+            </span>
+            <span class="field-error" id="err-doc" style="display:none;">A supporting document is required.</span>
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('cheques.detail', cheque_id=cheque.cheque_id) }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Confirm Resolution</button>
+        </div>
+    </form>
+</div>
+
+<style>
+.resolution-options { display:flex; flex-direction:column; gap:.75rem; margin-bottom:1.25rem; }
+.resolution-option { display:flex; align-items:flex-start; gap:.75rem; padding:1rem; border:2px solid var(--border); border-radius:.5rem; cursor:pointer; transition:border-color .15s, background .15s; }
+.resolution-option:has(input:checked) { border-color:var(--primary); background:var(--primary-light, #eff6ff); }
+.resolution-option input[type="radio"] { margin-top:.2rem; flex-shrink:0; }
+.resolution-option-body { flex:1; }
+.resolution-option-title { display:flex; align-items:center; gap:.5rem; font-weight:600; margin-bottom:.25rem; }
+.resolution-option-desc { font-size:.875rem; color:var(--text-muted); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Form-level validation
+document.querySelector('form').addEventListener('submit', function(e) {
+    let valid = true;
+
+    // Resolution type selected?
+    const selected = document.querySelector('input[name="resolution_type"]:checked');
+    if (!selected) { valid = false; }
+
+    // Remarks required
+    const remarks = document.getElementById('remarks');
+    const errRemarks = document.getElementById('err-remarks');
+    if (!remarks.value.trim()) {
+        remarks.classList.add('is-invalid');
+        if (errRemarks) errRemarks.style.display = '';
+        valid = false;
+    } else {
+        remarks.classList.remove('is-invalid');
+        if (errRemarks) errRemarks.style.display = 'none';
+    }
+
+    // Supporting document required
+    const docInput = document.getElementById('supporting_doc');
+    const errDoc   = document.getElementById('err-doc');
+    if (!docInput.files || !docInput.files.length) {
+        docInput.classList.add('is-invalid');
+        if (errDoc) errDoc.style.display = '';
+        valid = false;
+    } else {
+        docInput.classList.remove('is-invalid');
+        if (errDoc) errDoc.style.display = 'none';
+    }
+
+    if (!valid) e.preventDefault();
+});
+</script>
+{% endblock %}

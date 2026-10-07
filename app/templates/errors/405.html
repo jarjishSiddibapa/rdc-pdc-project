@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}405 Method Not Allowed — {{ app_name }}{% endblock %}
+
+{% block auth_content %}
+<div class="error-page">
+    <div style="font-size:4rem;margin-bottom:.5rem;">⛔</div>
+    <h1>405</h1>
+    <h2 style="font-size:1.1rem;font-weight:600;color:var(--text-primary);margin:0 0 .5rem;">Method Not Allowed</h2>
+    <p style="max-width:420px;">
+        The HTTP method used for this request is not supported at
+        <code style="font-size:.82rem;background:var(--surface-alt,rgba(0,0,0,.1));padding:.15rem .4rem;border-radius:.3rem;">{{ request.path }}</code>.
+        This usually happens when a form is submitted incorrectly or a URL is accessed directly instead of through the application.
+    </p>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;">
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">Go to Dashboard</a>
+        <a href="javascript:history.back()" class="btn btn-secondary">Go Back</a>
+    </div>
+</div>
+{% endblock %}

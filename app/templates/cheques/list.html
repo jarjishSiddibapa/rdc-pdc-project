@@ -1,0 +1,528 @@
+{% extends "base.html" %}
+{% block title %}Cheques — {{ app_name }}{% endblock %}
+{% block page_title %}All Cheques{% endblock %}
+
+{% block content %}
+
+{# ── Top action bar ───────────────────────────────────────────────────────── #}
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
+    <div id="resultsSummary" style="font-size:.85rem;color:var(--text-muted);"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <a href="{{ url_for('reports.export_cheques') }}" id="exportLink" class="btn btn-sm btn-secondary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Excel
+        </a>
+        {% if current_user.role == 'Sales' %}
+        <a href="{{ url_for('cheques.create') }}" class="btn btn-sm btn-primary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            New Cheque
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Main card: tabs + filters + table ───────────────────────────────────── #}
+<div class="content-card" style="overflow:hidden;">
+
+    {# ── Tab bar ────────────────────────────────────────────────────────────── #}
+    <div class="cheque-tab-bar" id="tabBar">
+        <button class="cheque-tab active" data-tab="action">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Action Required
+            <span class="tab-badge" id="cnt-action"></span>
+        </button>
+        <button class="cheque-tab" data-tab="progress">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+            In Progress
+            <span class="tab-badge tab-badge-amber" id="cnt-progress"></span>
+        </button>
+        <button class="cheque-tab" data-tab="complete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            End of Lifecycle
+            <span class="tab-badge tab-badge-green" id="cnt-complete"></span>
+        </button>
+    </div>
+
+    {# ── Filter row ─────────────────────────────────────────────────────────── #}
+    <div class="cheque-filter-bar" id="filterBar">
+        <div class="cheque-filter-row">
+            {# Search #}
+            <div class="cheque-filter-item cheque-filter-search">
+                <svg class="filter-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="fSearch" class="form-input form-input-sm cheque-search-input" placeholder="Search UID, cheque #, customer name or code…">
+            </div>
+            {# Status #}
+            <div class="cheque-filter-item">
+                <select id="fStatus" class="form-input form-input-sm">
+                    <option value="">All Statuses</option>
+                    {% for s in statuses %}
+                    <option value="{{ s }}">{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {# Type #}
+            <div class="cheque-filter-item" style="min-width:110px;max-width:130px;">
+                <select id="fType" class="form-input form-input-sm">
+                    <option value="">All Types</option>
+                    <option value="PDC">PDC</option>
+                    <option value="Normal">Normal</option>
+                </select>
+            </div>
+            {# Bank #}
+            <div class="cheque-filter-item">
+                <select id="fBank" class="form-input form-input-sm">
+                    <option value="">All Banks</option>
+                    {% for b in banks_list %}
+                    <option value="{{ b.bank_id }}">{{ b.bank_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if current_user.role in ('Admin', 'HO_Accounts') %}
+            <div class="cheque-filter-item">
+                <select id="fLocation" class="form-input form-input-sm">
+                    <option value="">All Locations</option>
+                    {% for loc in locs_list %}
+                    <option value="{{ loc.location_id }}">{{ loc.location_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {% if current_user.role in ('Admin', 'HO_Accounts', 'Accounts') %}
+            <div class="cheque-filter-item">
+                <select id="fSalesperson" class="form-input form-input-sm">
+                    <option value="">All Salespersons</option>
+                    {% for sp in salespeople_list %}
+                    <option value="{{ sp.user_id }}">{{ sp.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {# Date range #}
+            <div class="cheque-filter-item" style="min-width:130px;">
+                <input type="date" id="fDateFrom" class="form-input form-input-sm" title="Cheque date from">
+            </div>
+            <div class="cheque-filter-item" style="min-width:130px;">
+                <input type="date" id="fDateTo" class="form-input form-input-sm" title="Cheque date to">
+            </div>
+            {# Amount range #}
+            <div class="cheque-filter-item" style="min-width:110px;max-width:130px;">
+                <input type="number" id="fAmtFrom" class="form-input form-input-sm" placeholder="₹ Min" step="0.01" min="0">
+            </div>
+            <div class="cheque-filter-item" style="min-width:110px;max-width:130px;">
+                <input type="number" id="fAmtTo" class="form-input form-input-sm" placeholder="₹ Max" step="0.01" min="0">
+            </div>
+            {# Lying with (only for non-complete tabs) #}
+            <div class="cheque-filter-item" id="fLyingWithWrap">
+                <select id="fLyingWith" class="form-input form-input-sm">
+                    <option value="">Lying With: Any</option>
+                    {% for lw in lying_with_options %}
+                    <option value="{{ lw }}">{{ lw }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {# Per page #}
+            <div class="cheque-filter-item" style="min-width:90px;max-width:100px;">
+                <select id="fPerPage" class="form-input form-input-sm">
+                    <option value="20">20 / page</option>
+                    <option value="50">50 / page</option>
+                    <option value="100">100 / page</option>
+                </select>
+            </div>
+            {# Clear #}
+            <button type="button" id="clearFilters" class="btn btn-sm btn-secondary" style="white-space:nowrap;flex-shrink:0;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Clear
+            </button>
+        </div>
+    </div>
+
+    {# ── Table ──────────────────────────────────────────────────────────────── #}
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;min-height:280px;position:relative;">
+        {# Loading overlay #}
+        <div id="tableLoading" style="display:none;position:absolute;inset:0;background:var(--bg-card);opacity:.7;z-index:5;align-items:center;justify-content:center;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2" style="animation:spin 1s linear infinite;"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        </div>
+        <table class="data-table" id="chequeTable" style="min-width:700px;">
+            <thead>
+                <tr>
+                    <th class="sortable-th" data-col="uid" style="min-width:130px;">UID</th>
+                    <th>Customer</th>
+                    <th class="sortable-th" data-col="cheque_number">Cheque #</th>
+                    <th class="sortable-th" data-col="cheque_date">Date</th>
+                    <th>Bank</th>
+                    <th class="sortable-th text-right" data-col="amount">Amount (₹)</th>
+                    <th>Type</th>
+                    <th class="sortable-th" data-col="status">Status</th>
+                    <th id="thLying">Lying With</th>
+                    <th>Location</th>
+                    <th style="width:46px;"></th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+        {# Empty / error states #}
+        <div id="stateEmpty" style="display:none;text-align:center;padding:3rem 1rem;">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:.2;margin-bottom:.75rem;"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            <p style="color:var(--text-muted);font-size:.875rem;margin:0;">No cheques found matching your filters.</p>
+        </div>
+        <div id="stateError" style="display:none;text-align:center;padding:3rem 1rem;">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.2" style="opacity:.5;margin-bottom:.75rem;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p style="color:var(--text-muted);font-size:.875rem;margin:0;">Failed to load data. <button type="button" class="btn btn-xs btn-secondary" onclick="loadTable()">Retry</button></p>
+        </div>
+    </div>
+
+    {# ── Pagination bar ──────────────────────────────────────────────────────── #}
+    <div id="paginationBar" style="display:none;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border-color);flex-wrap:wrap;background:var(--bg-card);">
+        <span id="pgInfo" style="font-size:.8rem;color:var(--text-muted);flex:1;min-width:120px;"></span>
+        <div id="pgButtons" style="display:flex;gap:3px;flex-wrap:wrap;align-items:center;"></div>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+            <span style="font-size:.78rem;color:var(--text-muted);">Go to</span>
+            <input type="number" id="pgGotoInput" min="1" class="form-input" style="width:54px;height:30px;padding:0 6px;text-align:center;font-size:.8rem;">
+            <button type="button" id="pgGotoBtn" class="btn btn-xs btn-secondary" style="height:30px;">Go</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ═══════════════════════════════════════════════════════
+   All Cheques — Tabbed AJAX table
+   ═══════════════════════════════════════════════════════ */
+(function () {
+
+    /* ── State ────────────────────────────────────────── */
+    var S = {
+        tab:     'action',
+        page:    1,
+        perPage: 20,
+        sortBy:  'created_at',
+        sortDir: 'desc',
+    };
+
+    /* ── DOM refs ─────────────────────────────────────── */
+    var tbody       = document.getElementById('tableBody');
+    var tblLoading  = document.getElementById('tableLoading');
+    var stEmpty     = document.getElementById('stateEmpty');
+    var stError     = document.getElementById('stateError');
+    var chequeTable = document.getElementById('chequeTable');
+    var pgBar       = document.getElementById('paginationBar');
+    var pgInfo      = document.getElementById('pgInfo');
+    var pgButtons   = document.getElementById('pgButtons');
+    var pgGotoInput = document.getElementById('pgGotoInput');
+    var pgGotoBtn   = document.getElementById('pgGotoBtn');
+    var summary     = document.getElementById('resultsSummary');
+    var thLying     = document.getElementById('thLying');
+    var exportLink  = document.getElementById('exportLink');
+
+    /* ── Filters DOM refs ─────────────────────────────── */
+    var fSearch    = document.getElementById('fSearch');
+    var fStatus    = document.getElementById('fStatus');
+    var fType      = document.getElementById('fType');
+    var fBank      = document.getElementById('fBank');
+    var fLocation  = document.getElementById('fLocation');
+    var fSalesperson = document.getElementById('fSalesperson');
+    var fDateFrom  = document.getElementById('fDateFrom');
+    var fDateTo    = document.getElementById('fDateTo');
+    var fAmtFrom   = document.getElementById('fAmtFrom');
+    var fAmtTo     = document.getElementById('fAmtTo');
+    var fLyingWith = document.getElementById('fLyingWith');
+    var fPerPage   = document.getElementById('fPerPage');
+
+    /* ── Helpers ──────────────────────────────────────── */
+    function esc(s) {
+        if (s === null || s === undefined) return '—';
+        return String(s)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function fmtNum(n) {
+        return Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    }
+
+    function debounce(fn, ms) {
+        var t;
+        return function () { clearTimeout(t); t = setTimeout(fn, ms); };
+    }
+
+    function getParams() {
+        var p = {
+            tab:     S.tab,
+            page:    S.page,
+            per_page: S.perPage,
+            sort_by:  S.sortBy,
+            sort_dir: S.sortDir,
+        };
+        if (fSearch    && fSearch.value.trim())   p.search       = fSearch.value.trim();
+        if (fStatus    && fStatus.value)          p.status       = fStatus.value;
+        if (fType      && fType.value)            p.cheque_type  = fType.value;
+        if (fBank      && fBank.value)            p.bank_id      = fBank.value;
+        if (fLocation  && fLocation.value)        p.location_id_filter = fLocation.value;
+        if (fSalesperson && fSalesperson.value)   p.salesperson_id = fSalesperson.value;
+        if (fDateFrom  && fDateFrom.value)        p.date_from    = fDateFrom.value;
+        if (fDateTo    && fDateTo.value)          p.date_to      = fDateTo.value;
+        if (fAmtFrom   && fAmtFrom.value)         p.amount_from  = fAmtFrom.value;
+        if (fAmtTo     && fAmtTo.value)           p.amount_to    = fAmtTo.value;
+        if (fLyingWith && fLyingWith.value)       p.lying_with   = fLyingWith.value;
+        return p;
+    }
+
+    function buildQS(p) {
+        return Object.entries(p)
+            .filter(function(e){ return e[1] !== '' && e[1] !== null && e[1] !== undefined; })
+            .map(function(e){ return encodeURIComponent(e[0])+'='+encodeURIComponent(e[1]); })
+            .join('&');
+    }
+
+    /* ── Fetch + render ───────────────────────────────── */
+    var _abortCtrl = null;
+    function loadTable() {
+        // Cancel any in-flight request
+        if (_abortCtrl) { try { _abortCtrl.abort(); } catch(e) {} }
+        if (typeof AbortController !== 'undefined') _abortCtrl = new AbortController();
+
+        var params = getParams();
+        var qs = buildQS(params);
+
+        // Show loading spinner (overlay over table)
+        tblLoading.style.display = 'flex';
+        stEmpty.style.display   = 'none';
+        stError.style.display   = 'none';
+        tbody.innerHTML         = '';
+        pgBar.style.display     = 'none';
+
+        // Update "Lying With" column visibility
+        var isComplete = S.tab === 'complete';
+        if (thLying) thLying.style.display = isComplete ? 'none' : '';
+
+        // Push state for bookmarking
+        history.replaceState(null, '', '/cheques/?' + qs);
+
+        // Update export link
+        if (exportLink) exportLink.href = '/reports/export?' + qs;
+
+        var fetchOpts = { credentials: 'same-origin' };
+        if (_abortCtrl) fetchOpts.signal = _abortCtrl.signal;
+
+        fetch('/cheques/api/table?' + qs, fetchOpts)
+            .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function(data) {
+                tblLoading.style.display = 'none';
+                updateCounts(data.tab_counts);
+                if (!data.cheques || !data.cheques.length) {
+                    stEmpty.style.display = '';
+                    return;
+                }
+                renderRows(data.cheques, isComplete);
+                renderPagination(data);
+                var from = (data.page - 1) * S.perPage + 1;
+                var to   = Math.min(data.page * S.perPage, data.total);
+                if (summary) summary.textContent = 'Showing ' + from + '–' + to + ' of ' + data.total.toLocaleString() + ' cheques';
+            })
+            .catch(function(err) {
+                if (err && err.name === 'AbortError') return;
+                tblLoading.style.display = 'none';
+                stError.style.display    = '';
+            });
+    }
+
+    function renderRows(cheques, isComplete) {
+        var typeColors = { PDC: 'purple', Normal: 'blue' };
+        tbody.innerHTML = cheques.map(function(c) {
+            var lyingCell = isComplete
+                ? '<td style="display:none;"></td>'
+                : '<td style="font-size:.78rem;color:var(--text-muted);">' + esc(c.lying_with || '—') + '</td>';
+            return '<tr>' +
+                '<td><a href="' + esc(c.url) + '" class="link-primary font-mono" style="font-size:.82rem;">' + esc(c.uid) + '</a></td>' +
+                '<td><div style="font-size:.85rem;">' + esc(c.customer) + '</div>' +
+                    (c.customer_code ? '<div style="font-size:.73rem;color:var(--text-muted);">' + esc(c.customer_code) + '</div>' : '') +
+                '</td>' +
+                '<td class="font-mono" style="font-size:.83rem;">' + esc(c.cheque_number) + '</td>' +
+                '<td style="white-space:nowrap;font-size:.83rem;">' + esc(c.cheque_date) + '</td>' +
+                '<td style="font-size:.83rem;">' + esc(c.bank) + '</td>' +
+                '<td class="text-right font-mono" style="font-weight:700;font-size:.9rem;">₹' + fmtNum(c.amount) + '</td>' +
+                '<td><span class="tag tag-' + esc(typeColors[c.cheque_type] || 'gray') + '" style="font-size:.72rem;">' + esc(c.cheque_type) + '</span></td>' +
+                '<td><span class="status-badge" style="--badge-color:' + esc(c.status_color) + ';font-size:.72rem;">' + esc(c.status) + '</span></td>' +
+                lyingCell +
+                '<td style="font-size:.78rem;color:var(--text-muted);">' + esc(c.location) + '</td>' +
+                '<td><a href="' + esc(c.url) + '" class="btn btn-xs btn-secondary" title="View details">' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' +
+                '</a></td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    /* ── Pagination ───────────────────────────────────── */
+    function renderPagination(data) {
+        var total = data.total || 0;
+        if (total === 0) { pgBar.style.display = 'none'; return; }
+
+        var page  = data.page  || 1;
+        var pages = data.pages || 1;
+        var from  = (page - 1) * S.perPage + 1;
+        var to    = Math.min(page * S.perPage, total);
+
+        pgInfo.textContent  = from + '–' + to + ' of ' + total.toLocaleString();
+        pgGotoInput.max     = pages;
+        pgGotoInput.value   = page;
+        pgBar.style.display = 'flex';
+
+        pgButtons.innerHTML = '';
+
+        // Generate page number list with smart ellipsis
+        var nums = pageNums(page, pages);
+
+        // First + Prev
+        addBtn('«', 1,      page === 1,      'First page');
+        addBtn('‹', page-1, page === 1,      'Previous page');
+
+        nums.forEach(function(n) {
+            if (n === '…') {
+                var sp = document.createElement('span');
+                sp.textContent = '…';
+                sp.style.cssText = 'padding:0 2px;color:var(--text-muted);line-height:30px;font-size:.8rem;';
+                pgButtons.appendChild(sp);
+            } else {
+                addBtn(n, n, false, 'Page ' + n, n === page);
+            }
+        });
+
+        // Next + Last
+        addBtn('›', page+1, page >= pages,  'Next page');
+        addBtn('»', pages,  page >= pages,  'Last page');
+    }
+
+    function pageNums(cur, total) {
+        if (total <= 9) {
+            var a = [];
+            for (var i = 1; i <= total; i++) a.push(i);
+            return a;
+        }
+        if (cur <= 5)        return [1,2,3,4,5,6,'…',total-1,total];
+        if (cur >= total-4)  return [1,2,'…',total-5,total-4,total-3,total-2,total-1,total];
+        return [1,2,'…',cur-1,cur,cur+1,'…',total-1,total];
+    }
+
+    function addBtn(label, targetPage, disabled, title, isActive) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.title = title || '';
+        btn.className = 'btn btn-xs ' + (isActive ? 'btn-primary' : 'btn-secondary');
+        btn.style.cssText = 'min-width:30px;height:30px;padding:0 6px;font-size:.78rem;';
+        if (disabled) {
+            btn.disabled = true;
+            btn.style.opacity = '.35';
+            btn.style.cursor = 'default';
+        } else {
+            btn.addEventListener('click', function() { S.page = targetPage; loadTable(); });
+        }
+        pgButtons.appendChild(btn);
+    }
+
+    /* ── Tab counts ───────────────────────────────────── */
+    function updateCounts(counts) {
+        if (!counts) return;
+        ['action','progress','complete'].forEach(function(t) {
+            var el = document.getElementById('cnt-' + t);
+            if (el && counts[t] !== undefined) {
+                var n = parseInt(counts[t]);
+                el.textContent = n >= 1000 ? (n/1000).toFixed(1)+'k' : n;
+                el.style.display = n > 0 ? '' : 'none';
+            }
+        });
+    }
+
+    /* ── Sort headers ─────────────────────────────────── */
+    function updateSortUI() {
+        document.querySelectorAll('.sortable-th').forEach(function(th) {
+            var col = th.getAttribute('data-col');
+            th.classList.remove('sort-asc', 'sort-desc');
+            var old = th.querySelector('.sort-icon');
+            if (old) old.remove();
+            var icon = document.createElement('span');
+            icon.className = 'sort-icon';
+            icon.style.cssText = 'margin-left:4px;font-size:.75em;opacity:' + (S.sortBy === col ? '1' : '.3') + ';';
+            icon.textContent = S.sortBy === col ? (S.sortDir === 'asc' ? '↑' : '↓') : '⇅';
+            if (S.sortBy === col) icon.style.color = 'var(--accent-primary)';
+            th.appendChild(icon);
+        });
+    }
+
+    document.querySelectorAll('.sortable-th').forEach(function(th) {
+        th.style.cursor = 'pointer';
+        th.style.userSelect = 'none';
+        th.addEventListener('click', function() {
+            var col = this.getAttribute('data-col');
+            if (S.sortBy === col) {
+                S.sortDir = S.sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                S.sortBy  = col;
+                S.sortDir = (col === 'amount' || col === 'cheque_date' || col === 'created_at') ? 'desc' : 'asc';
+            }
+            S.page = 1;
+            updateSortUI();
+            loadTable();
+        });
+    });
+
+    /* ── Tabs ─────────────────────────────────────────── */
+    document.querySelectorAll('.cheque-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.cheque-tab').forEach(function(b) { b.classList.remove('active'); });
+            this.classList.add('active');
+            S.tab  = this.getAttribute('data-tab');
+            S.page = 1;
+            // Show/hide Lying With filter for complete tab
+            var lyingWrap = document.getElementById('fLyingWithWrap');
+            if (lyingWrap) lyingWrap.style.display = S.tab === 'complete' ? 'none' : '';
+            loadTable();
+        });
+    });
+
+    /* ── Filter inputs ────────────────────────────────── */
+    var debouncedLoad = debounce(function() { S.page = 1; loadTable(); }, 400);
+
+    if (fSearch) fSearch.addEventListener('input', debouncedLoad);
+
+    [fStatus, fType, fBank, fLocation, fSalesperson, fDateFrom, fDateTo, fAmtFrom, fAmtTo, fLyingWith].forEach(function(el) {
+        if (el) el.addEventListener('change', function() { S.page = 1; loadTable(); });
+    });
+
+    if (fPerPage) {
+        fPerPage.addEventListener('change', function() {
+            S.perPage = parseInt(this.value) || 20;
+            S.page = 1;
+            loadTable();
+        });
+    }
+
+    document.getElementById('clearFilters').addEventListener('click', function() {
+        [fSearch, fStatus, fType, fBank, fLocation, fSalesperson, fDateFrom, fDateTo, fAmtFrom, fAmtTo, fLyingWith].forEach(function(el) {
+            if (el) el.value = '';
+        });
+        if (fPerPage) fPerPage.value = '20';
+        S.perPage = 20;
+        S.page    = 1;
+        loadTable();
+    });
+
+    /* ── Go-to-page ───────────────────────────────────── */
+    pgGotoBtn.addEventListener('click', function() {
+        var n = parseInt(pgGotoInput.value);
+        if (n && n > 0) { S.page = n; loadTable(); }
+    });
+    pgGotoInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') pgGotoBtn.click();
+    });
+
+    /* ── Init ─────────────────────────────────────────── */
+    updateSortUI();
+    loadTable();
+
+}());
+</script>
+{% endblock %}

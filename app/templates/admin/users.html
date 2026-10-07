@@ -1,0 +1,684 @@
+{% extends "base.html" %}
+{% block title %}User Management — {{ app_name }}{% endblock %}
+{% block page_title %}User Management{% endblock %}
+
+{% block content %}
+
+{# ── Top action bar ────────────────────────────────────────────────────────── #}
+<div class="actions-bar">
+    <div></div>{# spacer #}
+    <div class="actions-right">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleMergePanel()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:.3rem;vertical-align:middle;"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+            Merge Users
+        </button>
+        <a href="{{ url_for('admin.create_user') }}" class="btn btn-sm btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:.3rem;vertical-align:middle;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            New User
+        </a>
+    </div>
+</div>
+
+{# ── Merge Users panel ─────────────────────────────────────────────────────── #}
+<div id="mergeUserPanel" style="display:none;margin-bottom:1rem;">
+    <div class="content-card" style="border:2px solid #f59e0b;">
+        <div class="card-header" style="background:#fef3c7;border-bottom:1px solid #fde68a;">
+            <h3 class="card-title" style="color:#92400e;font-size:.95rem;">Merge Sales Person Users</h3>
+            <small style="color:#78350f;">All cheques and customers from the source will be reassigned to the target. Source user is then deactivated.</small>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('admin.merge_users') }}" onsubmit="return confirmUserMerge()">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:.75rem;align-items:flex-end;">
+                    <div>
+                        <label class="form-label">Source (duplicate — to remove)</label>
+                        <select name="source_id" id="mergeUserSource" class="form-input ts-select" required>
+                            <option value="">— Select source user —</option>
+                            {% for u in all_sales_users %}
+                            <option value="{{ u.user_id }}">
+                                {{ u.full_name }}{% if u.salesrep_id %} [ERP #{{ u.salesrep_id }}]{% endif %}
+                                {% if u._is_active == 'N' %} (inactive){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="padding-bottom:.5rem;color:var(--text-muted);font-size:1.2rem;">→</div>
+                    <div>
+                        <label class="form-label">Target (correct one — to keep)</label>
+                        <select name="target_id" id="mergeUserTarget" class="form-input ts-select" required>
+                            <option value="">— Select target user —</option>
+                            {% for u in all_sales_users %}
+                            <option value="{{ u.user_id }}">
+                                {{ u.full_name }}{% if u.salesrep_id %} [ERP #{{ u.salesrep_id }}]{% endif %}
+                                {% if u._is_active == 'N' %} (inactive){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="padding-bottom:.25rem;">
+                        <button type="submit" class="btn btn-primary" style="background:#d97706;border-color:#d97706;">Merge</button>
+                    </div>
+                </div>
+                <small class="form-hint" style="margin-top:.5rem;display:block;">
+                    Example: merge "Rahul K Nair" (source) into "Rahul Nair" (target) — all cheques and customers reassigned to Rahul Nair. Rahul K Nair is deactivated.
+                </small>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# ── Main card ─────────────────────────────────────────────────────────────── #}
+<div class="content-card" style="overflow:hidden;">
+
+    {# ── Tab bar ──────────────────────────────────────────────────────────────── #}
+    <div class="cheque-tab-bar" id="userTabBar">
+        <button class="cheque-tab active" data-tab="active" onclick="switchTab('active')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            Active Users
+            <span class="tab-badge tab-badge-green" id="cnt-active">{{ active_users|length }}</span>
+        </button>
+        <button class="cheque-tab" data-tab="pending" onclick="switchTab('pending')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Needs Activation
+            <span class="tab-badge tab-badge-amber" id="cnt-pending">{{ pending_users|length }}</span>
+        </button>
+        <button class="cheque-tab" data-tab="inactive" onclick="switchTab('inactive')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            Inactive
+            <span class="tab-badge" id="cnt-inactive">{{ inactive_users|length }}</span>
+        </button>
+    </div>
+
+    {# ── Filter bar ───────────────────────────────────────────────────────────── #}
+    <div class="cheque-filter-bar">
+        <div class="cheque-filter-row">
+            <div class="cheque-filter-item cheque-filter-search">
+                <svg class="filter-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="userSearch" class="form-input form-input-sm cheque-search-input"
+                       placeholder="Search name, username, email…" oninput="filterUsers()">
+            </div>
+            <div class="cheque-filter-item">
+                <select id="userRoleFilter" class="form-input form-input-sm" onchange="filterUsers()">
+                    <option value="">All Roles</option>
+                    {% for r in roles %}
+                    <option value="{{ r }}">{{ r }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="cheque-filter-item">
+                <select id="userLocFilter" class="form-input form-input-sm" onchange="filterUsers()">
+                    <option value="">All Locations</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.location_id }}">{{ loc.location_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="clearUserFilters()">Clear</button>
+        </div>
+    </div>
+
+    {# ── Helper macro: one table of users ─────────────────────────────────────── #}
+    {% macro user_table(user_list, tab_name) %}
+    <div class="user-tab-section" data-tab="{{ tab_name }}"
+         style="{{ 'display:none' if tab_name != 'active' }}">
+        {% if user_list %}
+        <table class="data-table user-filterable-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Location</th>
+                    <th>Last Login</th>
+                    {% if tab_name != 'pending' %}<th>Status</th>{% endif %}
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in user_list %}
+                {% set erp_pending = u._is_active == 'N' and u.salesrep_id %}
+                <tr data-name="{{ u.full_name|lower }}"
+                    data-username="{{ u.username|lower }}"
+                    data-email="{{ (u.email or '')|lower }}"
+                    data-role="{{ u.role }}"
+                    data-loc="{{ u.location_id or '' }}"
+                    data-locs="{% for l in u.locations %}{{ l.location_id }} {% endfor %}">
+                    <td>
+                        <div class="user-cell">
+                            <div class="user-avatar-sm" style="background:{{ u.avatar_color or '#6366f1' }}">{{ u.initials }}</div>
+                            <div>
+                                <div style="font-weight:500;">{{ u.full_name }}</div>
+                                {% if erp_pending %}
+                                <div style="font-size:.7rem;color:#d97706;font-weight:600;margin-top:1px;">
+                                    ERP import — set location &amp; password to activate
+                                </div>
+                                {% elif u.email %}
+                                <div style="font-size:.72rem;color:var(--text-muted);margin-top:1px;">{{ u.email }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td class="font-mono" style="font-size:.82rem;">{{ u.username }}</td>
+                    <td><span class="tag tag-purple">{{ u.role_display }}</span></td>
+                    <td style="font-size:.82rem;">
+                        {% set locs_display = u.locations_display %}
+                        {% if locs_display %}
+                            {{ locs_display }}
+                            {% if u.is_head_office_user %}
+                            <span class="tag tag-purple" style="font-size:.65rem;margin-left:.3rem;">HO</span>
+                            {% endif %}
+                        {% elif u.user_location %}
+                            {{ u.user_location.location_name }}
+                        {% else %}
+                            <span style="color:var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:.82rem;color:var(--text-muted);">
+                        {{ u.last_login.strftime('%d %b %Y, %H:%M') if u.last_login else 'Never' }}
+                    </td>
+                    {% if tab_name != 'pending' %}
+                    <td>
+                        {% if u._is_active == 'Y' %}
+                        <span class="tag tag-green">Active</span>
+                        {% else %}
+                        <span class="tag tag-gray">Inactive</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td>
+                        <div class="action-btns">
+                            {% if u.role == 'Sales' %}
+                            <a href="{{ url_for('customers.list_customers', salesperson_id=u.user_id) }}"
+                               class="btn btn-xs btn-secondary" title="View customers">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                Customers
+                            </a>
+                            {% endif %}
+
+                            {% if erp_pending %}
+                            <button type="button" class="btn btn-xs btn-success"
+                                    onclick="openActivateModal('{{ url_for('admin.activate_user', user_id=u.user_id) }}', '{{ u.full_name|e }}')">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                Activate
+                            </button>
+                            <a href="{{ url_for('admin.edit_user', user_id=u.user_id) }}"
+                               class="btn btn-xs btn-secondary" title="Full edit">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </a>
+                            {% else %}
+                            <a href="{{ url_for('admin.edit_user', user_id=u.user_id) }}"
+                               class="btn btn-xs btn-secondary" title="Edit">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </a>
+                            <button type="button" class="btn btn-xs btn-secondary" title="Reset Password"
+                                    onclick="openResetModal('{{ url_for('admin.reset_password', user_id=u.user_id) }}', '{{ u.full_name|e }}')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            </button>
+                            {% if u.user_id != current_user.user_id %}
+                            <form method="POST" action="{{ url_for('admin.toggle_user', user_id=u.user_id) }}" style="display:inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="btn btn-xs {{ 'btn-danger' if u._is_active == 'Y' else 'btn-success' }}"
+                                        title="{{ 'Deactivate' if u._is_active == 'Y' else 'Re-activate' }}"
+                                        onclick="return confirm('{{ 'Deactivate' if u._is_active == 'Y' else 'Re-activate' }} {{ u.full_name|e }}?')">
+                                    {% if u._is_active == 'Y' %}
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                    {% else %}
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                    {% endif %}
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {# No-results row shown by JS when filter hides everything #}
+        <div class="empty-state user-no-results" style="display:none;">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-muted);margin-bottom:.5rem;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <h3>No users match your filters</h3>
+            <p style="font-size:.82rem;color:var(--text-muted);">Try clearing the search or changing the role / location filter.</p>
+        </div>
+
+        {# ── Client-side paginator ──────────────────────────────────────────── #}
+        <div class="pagination-wrapper user-paginator" style="display:none;">
+            <span class="pagination-summary user-pg-summary"></span>
+            <div class="pagination user-pg-pages"></div>
+            <div class="pagination-controls">
+                <div class="pagination-perpage">
+                    <label>Rows</label>
+                    <select class="user-pg-perpage"
+                            onchange="setUserPerPage('{{ tab_name }}', +this.value)">
+                        {% for n in [10, 20, 50, 100] %}
+                        <option value="{{ n }}" {{ 'selected' if n == 20 }}>{{ n }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="pagination-divider"></div>
+                <form class="pagination-goto"
+                      onsubmit="event.preventDefault(); gotoUserPage('{{ tab_name }}', +this.p.value)">
+                    <span>Go to</span>
+                    <input name="p" type="number" min="1" placeholder="1" aria-label="Page number">
+                    <span class="user-pg-total">/ 1</span>
+                    <button type="submit" class="btn btn-xs btn-secondary">Go</button>
+                </form>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="empty-state">
+            {% if tab_name == 'pending' %}
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-muted);margin-bottom:.5rem;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <h3>All ERP users are activated</h3>
+            <p style="font-size:.82rem;color:var(--text-muted);">No users are waiting for activation.</p>
+            {% elif tab_name == 'inactive' %}
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-muted);margin-bottom:.5rem;"><circle cx="12" cy="12" r="10"/></svg>
+            <h3>No inactive users</h3>
+            {% else %}
+            <h3>No active users found</h3>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endmacro %}
+
+    {# ── Render the three sections ─────────────────────────────────────────── #}
+    <div class="card-body" style="padding:0;">
+        {{ user_table(active_users,  'active') }}
+        {{ user_table(pending_users, 'pending') }}
+        {{ user_table(inactive_users,'inactive') }}
+    </div>
+
+</div>{# /content-card #}
+
+
+{# ── Reset Password Modal ──────────────────────────────────────────────────── #}
+<div id="resetPasswordModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border-radius:.75rem;padding:2rem;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="margin:0 0 .25rem;font-size:1rem;">Reset Password</h3>
+        <p id="resetModalSubtitle" style="font-size:.82rem;color:var(--text-muted);margin:0 0 1.25rem;"></p>
+        <form method="POST" id="resetPasswordForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label class="form-label">New Password <span class="required">*</span></label>
+                <input type="password" name="new_password" id="resetPasswordInput" class="form-input"
+                       required minlength="8" placeholder="Minimum 8 characters" autocomplete="new-password">
+                <small class="form-hint">Minimum 8 characters.</small>
+            </div>
+            <div style="display:flex;gap:.75rem;margin-top:1.25rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeResetModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Reset Password</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ── Activate ERP User Modal ───────────────────────────────────────────────── #}
+<div id="activateModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border-radius:.75rem;padding:2rem;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.25rem;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <h3 style="margin:0;font-size:1rem;">Activate ERP User</h3>
+        </div>
+        <p id="activateModalSubtitle" style="font-size:.82rem;color:var(--text-muted);margin:0 0 1.25rem;"></p>
+        <form method="POST" id="activateForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label class="form-label">Location(s) <span class="required">*</span></label>
+                <input type="hidden" name="location_id" id="activateLocationIdHidden">
+                <select name="location_ids" id="activateLocationIds"
+                        class="form-input ts-select" multiple required>
+                    {% for loc in locations %}
+                    <option value="{{ loc.location_id }}">
+                        {{ loc.location_name }}{% if loc.is_head_office == 'Y' %} ★{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <small class="form-hint">Click to select, click again to deselect. Head Office (★) users can access all locations.</small>
+            </div>
+            <div class="form-group" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:.5rem;padding:1rem 1.25rem;">
+                <label class="form-label" style="color:#15803d;">
+                    Set Password <span class="required">*</span>
+                </label>
+                <input type="password" name="new_password" id="activatePasswordInput"
+                       class="form-input" required minlength="8"
+                       placeholder="Min 8 chars, upper, lower, number, special" autocomplete="new-password">
+                <div class="pw-strength-bar" id="activatePwBar"><div id="activatePwFill"></div></div>
+                <small id="activatePwMsg" class="form-hint" style="margin-top:.3rem;display:block;"></small>
+            </div>
+            <div style="display:flex;gap:.75rem;margin-top:1.25rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeActivateModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="background:#16a34a;border-color:#16a34a;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:.3rem;vertical-align:middle;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Activate User
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.pw-strength-bar { height:4px;border-radius:2px;background:var(--border);margin-top:.45rem;overflow:hidden;display:none; }
+.pw-strength-bar.visible { display:block; }
+#activatePwFill { height:100%;width:0;border-radius:2px;transition:width .25s,background .25s; }
+
+/* Tab section fade */
+.user-tab-section { animation: fadeInUp .18s var(--ease-spring,ease) both; }
+@keyframes fadeInUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+</style>
+
+<script>
+// ── Per-tab paginator state ───────────────────────────────────────
+var _paginators = {
+    active:   { page: 1, perPage: 20 },
+    pending:  { page: 1, perPage: 20 },
+    inactive: { page: 1, perPage: 20 }
+};
+
+// Smart page-number sequence with ellipsis gaps (mirrors Flask iter_pages)
+function _iterPages(current, total) {
+    var leftEdge = 1, leftCurrent = 2, rightCurrent = 2, rightEdge = 1;
+    var pages = [], last = 0;
+    for (var p = 1; p <= total; p++) {
+        var inLeft    = p <= leftEdge;
+        var inRight   = p > total - rightEdge;
+        var inCurrent = p >= current - leftCurrent && p <= current + rightCurrent;
+        if (inLeft || inRight || inCurrent) {
+            if (last && last + 1 !== p) pages.push(null); // gap → ellipsis
+            pages.push(p);
+            last = p;
+        }
+    }
+    return pages;
+}
+
+// Re-render paginator UI and apply page-visibility to rows
+function _applyUserPaginator(tab) {
+    var state   = _paginators[tab];
+    var section = document.querySelector('.user-tab-section[data-tab="' + tab + '"]');
+    if (!section) return;
+
+    var allRows = Array.from(section.querySelectorAll('tbody tr'));
+    // Rows where data-filter-match is not explicitly '0' count as matching
+    var matching = allRows.filter(function(r) { return r.dataset.filterMatch !== '0'; });
+    var total    = matching.length;
+    var perPage  = state.perPage;
+    var page     = state.page;
+    var pages    = Math.max(1, Math.ceil(total / perPage));
+    if (page > pages) page = state.page = 1;
+
+    var start = (page - 1) * perPage;
+    var end   = Math.min(start + perPage, total);
+
+    // Apply visibility: hide non-matching, paginate matching
+    allRows.forEach(function(r) { r.style.display = 'none'; });
+    matching.forEach(function(r, i) {
+        r.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+
+    // ── Paginator widget ────────────────────────────────────────────
+    var pg = section.querySelector('.user-paginator');
+    if (!pg) return;
+    pg.style.display = (total > perPage || total > 0) ? '' : 'none';
+
+    // Summary
+    var summaryEl = pg.querySelector('.user-pg-summary');
+    summaryEl.innerHTML = total === 0 ? '' :
+        'Showing <strong>' + (total ? start + 1 : 0) + '–' + end +
+        '</strong> of <strong>' + total + '</strong>';
+
+    // Page buttons
+    var pagesEl = pg.querySelector('.user-pg-pages');
+    pagesEl.innerHTML = '';
+
+    function _btn(label, targetPage, isActive, disabled, isNav) {
+        var cls = 'page-btn' + (isActive ? ' active' : '') + (isNav ? ' page-nav' : '');
+        if (disabled) {
+            var b = document.createElement('button');
+            b.className = cls; b.disabled = true; b.innerHTML = label;
+            return b;
+        }
+        var a = document.createElement('a');
+        a.className = cls; a.href = '#'; a.innerHTML = label;
+        a.addEventListener('click', function(e) {
+            e.preventDefault(); gotoUserPage(tab, targetPage);
+        });
+        return a;
+    }
+
+    pagesEl.appendChild(_btn('«', 1, false, page === 1, true));
+    pagesEl.appendChild(_btn('‹', page - 1, false, page === 1, true));
+
+    _iterPages(page, pages).forEach(function(p) {
+        if (p === null) {
+            var sp = document.createElement('span');
+            sp.className = 'page-dots'; sp.textContent = '···';
+            pagesEl.appendChild(sp);
+        } else {
+            pagesEl.appendChild(_btn(p, p, p === page, false, false));
+        }
+    });
+
+    pagesEl.appendChild(_btn('›', page + 1, false, page === pages, true));
+    pagesEl.appendChild(_btn('»', pages, false, page === pages, true));
+
+    // Per-page selector
+    var ppSel = pg.querySelector('.user-pg-perpage');
+    if (ppSel) ppSel.value = perPage;
+
+    // Go-to total label + input max
+    var totalEl = pg.querySelector('.user-pg-total');
+    if (totalEl) totalEl.textContent = '/ ' + pages;
+    var gotoInp = pg.querySelector('.pagination-goto input');
+    if (gotoInp) { gotoInp.max = pages; gotoInp.placeholder = page; }
+}
+
+function gotoUserPage(tab, n) {
+    var state   = _paginators[tab];
+    var section = document.querySelector('.user-tab-section[data-tab="' + tab + '"]');
+    if (!section) return;
+    var matching = Array.from(section.querySelectorAll('tbody tr'))
+        .filter(function(r) { return r.dataset.filterMatch !== '0'; }).length;
+    var pages = Math.max(1, Math.ceil(matching / state.perPage));
+    if (n >= 1 && n <= pages) { state.page = n; _applyUserPaginator(tab); }
+}
+
+function setUserPerPage(tab, n) {
+    _paginators[tab].perPage = n;
+    _paginators[tab].page    = 1;
+    _applyUserPaginator(tab);
+}
+
+// ── Tab switching ─────────────────────────────────────────────────
+var _activeTab = 'active';
+function switchTab(tab) {
+    _activeTab = tab;
+    document.querySelectorAll('#userTabBar .cheque-tab').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    document.querySelectorAll('.user-tab-section').forEach(function(sec) {
+        sec.style.display = sec.dataset.tab === tab ? '' : 'none';
+    });
+    filterUsers(); // re-filter + re-paginate the newly visible section
+}
+
+// ── Client-side filtering ─────────────────────────────────────────
+function filterUsers() {
+    var q    = (document.getElementById('userSearch').value || '').toLowerCase().trim();
+    var role = document.getElementById('userRoleFilter').value;
+    var loc  = document.getElementById('userLocFilter').value;
+
+    var section = document.querySelector('.user-tab-section[data-tab="' + _activeTab + '"]');
+    if (!section) return;
+
+    var rows = section.querySelectorAll('tbody tr');
+    rows.forEach(function(row) {
+        var name     = row.dataset.name     || '';
+        var username = row.dataset.username || '';
+        var email    = row.dataset.email    || '';
+        var rowRole  = row.dataset.role     || '';
+        var rowLoc   = row.dataset.loc      || '';
+        var rowLocs  = row.dataset.locs     || '';
+
+        var matchQ    = !q    || name.includes(q) || username.includes(q) || email.includes(q);
+        var matchRole = !role || rowRole === role;
+        var matchLoc  = !loc  || rowLoc === loc || rowLocs.trim().split(/\s+/).indexOf(loc) !== -1;
+
+        row.dataset.filterMatch = (matchQ && matchRole && matchLoc) ? '1' : '0';
+    });
+
+    // Reset to page 1 whenever filter changes
+    _paginators[_activeTab].page = 1;
+    _applyUserPaginator(_activeTab);
+
+    // No-results message
+    var hasMatch = Array.from(rows).some(function(r) { return r.dataset.filterMatch !== '0'; });
+    var noRes = section.querySelector('.user-no-results');
+    if (noRes) noRes.style.display = (rows.length > 0 && !hasMatch) ? '' : 'none';
+}
+
+function clearUserFilters() {
+    document.getElementById('userSearch').value = '';
+    document.getElementById('userRoleFilter').value = '';
+    document.getElementById('userLocFilter').value = '';
+    Object.keys(_paginators).forEach(function(t) { _paginators[t].page = 1; });
+    filterUsers();
+}
+
+// ── Shared password strength checker ─────────────────────────────
+function _pwStrength(val) {
+    if (!val) return { score: 0, label: '', color: '' };
+    var score = 0, missing = [];
+    if (val.length >= 8)           score++; else missing.push('8+ chars');
+    if (/[A-Z]/.test(val))         score++; else missing.push('uppercase');
+    if (/[a-z]/.test(val))         score++; else missing.push('lowercase');
+    if (/\d/.test(val))            score++; else missing.push('number');
+    if (/[^A-Za-z0-9]/.test(val)) score++; else missing.push('special char');
+    var map = [
+        {label:'Very weak', color:'#ef4444'},
+        {label:'Weak',      color:'#f97316'},
+        {label:'Fair',      color:'#eab308'},
+        {label:'Good',      color:'#22c55e'},
+        {label:'Strong ✓',  color:'#10b981'},
+    ];
+    var e = map[score - 1] || {label:'', color:'#ef4444'};
+    return {score:score, label:e.label, color:e.color, missing:missing};
+}
+function _bindStrengthMeter(inputId, barId, fillId, msgId) {
+    var inp  = document.getElementById(inputId);
+    var bar  = document.getElementById(barId);
+    var fill = document.getElementById(fillId);
+    var msg  = document.getElementById(msgId);
+    if (!inp || !bar || !fill || !msg) return;
+    inp.addEventListener('input', function() {
+        var val = this.value;
+        if (!val) { bar.classList.remove('visible'); msg.textContent = ''; return; }
+        bar.classList.add('visible');
+        var r = _pwStrength(val);
+        fill.style.width = (r.score * 20) + '%';
+        fill.style.background = r.color;
+        msg.style.color = r.color;
+        msg.textContent = r.missing && r.missing.length
+            ? r.label + ' — missing: ' + r.missing.join(', ')
+            : r.label;
+    });
+}
+
+// ── Reset password modal ──────────────────────────────────────────
+function openResetModal(actionUrl, fullName) {
+    document.getElementById('resetPasswordForm').action = actionUrl;
+    document.getElementById('resetModalSubtitle').textContent = 'Set a new password for ' + fullName;
+    document.getElementById('resetPasswordInput').value = '';
+    document.getElementById('resetPasswordModal').style.display = 'flex';
+    setTimeout(function(){ document.getElementById('resetPasswordInput').focus(); }, 50);
+}
+function closeResetModal() {
+    document.getElementById('resetPasswordModal').style.display = 'none';
+}
+document.getElementById('resetPasswordModal').addEventListener('click', function(e) {
+    if (e.target === this) closeResetModal();
+});
+
+// ── Merge panel ───────────────────────────────────────────────────
+function toggleMergePanel() {
+    var p = document.getElementById('mergeUserPanel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+function confirmUserMerge() {
+    var src = document.getElementById('mergeUserSource');
+    var tgt = document.getElementById('mergeUserTarget');
+    if (!src.value || !tgt.value) { alert('Please select both users.'); return false; }
+    if (src.value === tgt.value)  { alert('Source and target must be different.'); return false; }
+    return confirm(
+        'Merge "' + src.options[src.selectedIndex].text.trim() + '" into "' +
+        tgt.options[tgt.selectedIndex].text.trim() + '"?\n\n' +
+        'All cheques and customers will be reassigned to the target. ' +
+        'The source user will be deactivated. This cannot be undone.'
+    );
+}
+
+// ── Activate ERP user modal ───────────────────────────────────────
+function openActivateModal(actionUrl, fullName) {
+    document.getElementById('activateForm').action = actionUrl;
+    document.getElementById('activateModalSubtitle').textContent =
+        'Assign location(s) and set a password to activate ' + fullName + '.';
+    var inp = document.getElementById('activatePasswordInput');
+    inp.value = '';
+    var bar = document.getElementById('activatePwBar');
+    var msg = document.getElementById('activatePwMsg');
+    if (bar) bar.classList.remove('visible');
+    if (msg) msg.textContent = '';
+    var sel = document.getElementById('activateLocationIds');
+    if (sel && sel.tomselect) {
+        sel.tomselect.clear(true);
+    } else if (sel && typeof TomSelect !== 'undefined') {
+        new TomSelect(sel, {
+            plugins: ['checkbox_options', 'remove_button', 'clear_button'],
+            allowEmptyOption: false,
+            closeAfterSelect: false,
+            hideSelected: false,
+            placeholder: 'Select location(s)…',
+        });
+    }
+    document.getElementById('activateModal').style.display = 'flex';
+    setTimeout(function(){ inp.focus(); }, 50);
+}
+function closeActivateModal() {
+    document.getElementById('activateModal').style.display = 'none';
+}
+document.getElementById('activateModal').addEventListener('click', function(e) {
+    if (e.target === this) closeActivateModal();
+});
+document.getElementById('activateForm').addEventListener('submit', function() {
+    var sel  = document.getElementById('activateLocationIds');
+    var opts = Array.from(sel.selectedOptions);
+    document.getElementById('activateLocationIdHidden').value = opts.length ? opts[0].value : '';
+});
+
+// Wire strength meters
+_bindStrengthMeter('activatePasswordInput', 'activatePwBar', 'activatePwFill', 'activatePwMsg');
+
+// ── Initialise all tabs on page load ─────────────────────────────
+(function() {
+    // Mark every row as matching (no filter applied yet)
+    document.querySelectorAll('.user-tab-section tbody tr').forEach(function(r) {
+        r.dataset.filterMatch = '1';
+    });
+    // Build paginators for all three tabs
+    ['active', 'pending', 'inactive'].forEach(function(t) {
+        _applyUserPaginator(t);
+    });
+
+    // Auto-open tab based on URL hash or pending-only state
+    var hash = location.hash.replace('#', '');
+    if (hash === 'pending' || hash === 'inactive' || hash === 'active') {
+        switchTab(hash);
+    } else if ({{ pending_users|length }} > 0 && {{ active_users|length }} === 0) {
+        switchTab('pending');
+    }
+})();
+</script>
+{% endblock %}

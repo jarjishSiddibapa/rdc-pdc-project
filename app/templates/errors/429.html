@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}429 Too Many Requests — {{ app_name }}{% endblock %}
+
+{% block auth_content %}
+<div class="error-page">
+    <div style="font-size:4rem;margin-bottom:.5rem;">🚦</div>
+    <h1>429</h1>
+    <h2 style="font-size:1.1rem;font-weight:600;color:var(--text-primary);margin:0 0 .5rem;">Too Many Requests</h2>
+    <p style="max-width:420px;">
+        You have made too many requests in a short period of time.
+        Please wait a moment before trying again.
+    </p>
+    {% if retry_after %}
+    <p style="font-size:.85rem;color:var(--text-muted);margin:-.25rem 0 .75rem;">
+        You may retry in <strong>{{ retry_after }} second{{ 's' if retry_after != 1 }}</strong>.
+    </p>
+    {% endif %}
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;">
+        <a href="javascript:history.back()" class="btn btn-primary">Go Back</a>
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-secondary">Go to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

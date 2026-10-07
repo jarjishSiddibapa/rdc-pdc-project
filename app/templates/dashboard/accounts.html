@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Accounts Dashboard — {{ app_name }}{% endblock %}
+{% block page_title %}Accounts Dashboard{% endblock %}
+
+{% block content %}
+{% if location_name %}<div class="location-banner"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> {{ location_name }}</div>{% endif %}
+<div class="kpi-grid">
+    <div class="kpi-card kpi-orange">
+        <div class="kpi-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="kpi-data">
+            <span class="kpi-value" data-count="{{ pending_approval }}">0</span>
+            <span class="kpi-label">Pending Approval</span>
+        </div>
+    </div>
+    <div class="kpi-card kpi-purple">
+        <div class="kpi-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+        <div class="kpi-data">
+            <span class="kpi-value" data-count="{{ pending_deposit }}">0</span>
+            <span class="kpi-label">Pending Deposit</span>
+        </div>
+    </div>
+    <div class="kpi-card kpi-green">
+        <div class="kpi-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div class="kpi-data">
+            <span class="kpi-value" data-count="{{ amount_pending_deposit|int }}" data-prefix="₹">₹0</span>
+            <span class="kpi-label">Amount Pending Deposit</span>
+        </div>
+    </div>
+    <div class="kpi-card kpi-blue">
+        <div class="kpi-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+        <div class="kpi-data">
+            <span class="kpi-value" data-count="{{ total_cheques }}">0</span>
+            <span class="kpi-label">Total Cheques</span>
+        </div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="content-card">
+        <div class="card-header"><h2 class="card-title">Status Distribution</h2></div>
+        <div class="card-body chart-container"><canvas id="statusChart"></canvas></div>
+    </div>
+    <div class="content-card">
+        <div class="card-header"><h2 class="card-title">Quick Actions</h2></div>
+        <div class="card-body">
+            <div class="quick-actions">
+                <a href="{{ url_for('cheques.list_cheques') }}?status=Collected+by+Sales+Person" class="quick-action-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span>Review Collected</span>
+                </a>
+                <a href="{{ url_for('cheques.list_cheques') }}?status=Accepted" class="quick-action-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Deposit Queue</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="content-card">
+    <div class="card-header">
+        <h2 class="card-title">Recent Cheques</h2>
+        <a href="{{ url_for('cheques.list_cheques') }}" class="btn btn-sm btn-secondary">View All</a>
+    </div>
+    <div class="card-body table-responsive">
+        {% include "components/_cheque_table.html" %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusData = {{ stats_by_status | tojson }};
+    const statusColors = {{ status_colors | tojson }};
+    const labels = Object.keys(statusData);
+    const counts = labels.map(l => statusData[l].count);
+    const colors = labels.map(l => statusColors[l] || '#6b7280');
+    if (document.getElementById('statusChart')) {
+        new Chart(document.getElementById('statusChart'), {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '65%',
+                plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, color: '#94a3b8', font: { family: 'Inter', size: 11 } } } } }
+        });
+    }
+});
+</script>
+{% endblock %}

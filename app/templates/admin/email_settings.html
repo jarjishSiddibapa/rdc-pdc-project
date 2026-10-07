@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Email Settings — {{ app_name }}{% endblock %}
+{% block page_title %}Email Settings{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:540px;">
+    <div class="card-header">
+        <h2 class="card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Email Configuration
+        </h2>
+    </div>
+    <form method="POST" class="form-body" id="emailForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label for="gmail_address" class="form-label">Gmail Address <span class="required">*</span></label>
+            <div class="input-wrapper">
+                <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <input type="email" id="gmail_address" name="gmail_address" class="form-input" 
+                       value="{{ config.smtp_username if config else '' }}" 
+                       required placeholder="your-email@gmail.com">
+            </div>
+            <small class="form-hint">This will be used as the sender address</small>
+        </div>
+
+        <div class="form-group">
+            <label for="app_password" class="form-label">App Password {{ '(leave blank to keep current)' if config else '' }} <span class="required">{{ '' if config else '*' }}</span></label>
+            <div class="input-wrapper">
+                <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <input type="password" id="app_password" name="app_password" class="form-input" 
+                       placeholder="{{ '••••••••••••••••' if config else '16-character app password' }}" 
+                       {{ '' if config else 'required' }}>
+            </div>
+            <small class="form-hint">
+                Generate at <a href="https://myaccount.google.com/apppasswords" target="_blank" class="link-primary">Google App Passwords</a>
+                — requires 2-Step Verification enabled
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="sender_name" class="form-label">Sender Display Name</label>
+            <div class="input-wrapper">
+                <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <input type="text" id="sender_name" name="sender_name" class="form-input" 
+                       value="{{ config.sender_name if config else 'RDC PDC Manager' }}" 
+                       placeholder="RDC PDC Manager">
+            </div>
+            <small class="form-hint">How the "From" name appears in emails</small>
+        </div>
+
+        {% if config %}
+        <div class="config-status">
+            <div class="config-status-dot"></div>
+            <span>Email configured — <strong>{{ config.smtp_username }}</strong></span>
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="testConnectionBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Test Connection
+            </button>
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+        </div>
+
+        <div id="testResult" style="display:none; margin-top:16px;"></div>
+    </form>
+</div>
+
+<style>
+.config-status {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; margin-bottom: 18px;
+    background: var(--success-bg);
+    border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+    border-radius: var(--radius-md);
+    font-size: 13px; color: var(--success);
+}
+.config-status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success);
+    animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,.4); }
+    50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('testConnectionBtn').addEventListener('click', function() {
+    const btn = this;
+    const resultDiv = document.getElementById('testResult');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Testing...';
+
+    const form = document.getElementById('emailForm');
+    const formData = new FormData(form);
+
+    fetch('{{ url_for("admin.test_email") }}', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            resultDiv.style.display = 'block';
+            if (data.success) {
+                resultDiv.innerHTML = '<div class="flash-message flash-success"><span class="flash-text">✅ ' + data.message + '</span></div>';
+            } else {
+                resultDiv.innerHTML = '<div class="flash-message flash-danger"><span class="flash-text">❌ ' + data.message + '</span></div>';
+            }
+        })
+        .catch(err => {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="flash-message flash-danger"><span class="flash-text">❌ Connection test failed</span></div>';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Test Connection';
+        });
+});
+</script>
+{% endblock %}

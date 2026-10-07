@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ cheque.uid }} — {{ app_name }}{% endblock %}
+{% block page_title %}Edit Cheque{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:800px;">
+    <div class="card-header">
+        <h2 class="card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit — {{ cheque.uid }}
+        </h2>
+        <span class="status-badge" style="--badge-color:{{ cheque.status_color }}">{{ cheque.status }}</span>
+    </div>
+    <form method="POST" enctype="multipart/form-data" class="form-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <fieldset class="form-fieldset">
+            <legend>Location</legend>
+            <div class="form-group">
+                <label for="location_id" class="form-label">Location (City) <span class="required">*</span></label>
+                <select id="location_id" name="location_id" class="form-input ts-select" required>
+                    <option value="">— Select Location —</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.location_id }}" {{ 'selected' if cheque.location_id == loc.location_id }}>{{ loc.location_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-fieldset">
+            <legend>Cheque Details</legend>
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label for="cheque_number" class="form-label">Cheque Number <span class="required">*</span></label>
+                    <input type="text" id="cheque_number" name="cheque_number" class="form-input" value="{{ cheque.cheque_number }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="cheque_date" class="form-label">Cheque Date <span class="required">*</span></label>
+                    <input type="date" id="cheque_date" name="cheque_date" class="form-input" value="{{ cheque.cheque_date.strftime('%Y-%m-%d') if cheque.cheque_date else '' }}" required>
+                </div>
+            </div>
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label for="bank_id" class="form-label">Bank Name</label>
+                    {% if banks %}
+                    <select id="bank_id" name="bank_id" class="form-input ts-select">
+                        <option value="">— Select Bank —</option>
+                        {% for b in banks %}
+                        <option value="{{ b.bank_id }}" {{ 'selected' if cheque.bank_id == b.bank_id }}>{{ b.display_name }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input type="text" id="bank_name" name="bank_name" class="form-input" value="{{ cheque.bank_name or '' }}">
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="amount" class="form-label">Amount (₹) <span class="required">*</span></label>
+                    <input type="number" id="amount" name="amount" class="form-input" step="0.01" value="{{ cheque.amount }}" required>
+                </div>
+            </div>
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label for="cheque_type" class="form-label">Cheque Type</label>
+                    <select id="cheque_type" name="cheque_type" class="form-input">
+                        <option value="PDC" {{ 'selected' if cheque.cheque_type == 'PDC' }}>PDC (Post-Dated)</option>
+                        <option value="Normal" {{ 'selected' if cheque.cheque_type in ('Normal', 'Open') }}>Normal</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sales Person</label>
+                    <div class="form-input" style="background:var(--surface-alt,#f8fafc);cursor:default;color:var(--text-muted);">
+                        {{ cheque.salesperson.full_name if cheque.salesperson else '—' }}
+                    </div>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-fieldset">
+            <legend>Attachments & Notes</legend>
+            <div class="form-group">
+                <label for="cheque_image" class="form-label">Replace Cheque Image</label>
+                {% if cheque.uploaded_file %}
+                <div class="file-selected-chip" style="margin-bottom:.5rem;">
+                    <span class="file-chip-icon">📎</span>
+                    <div class="file-chip-info">
+                        <span class="file-chip-name">Current: {{ cheque.uploaded_file }}</span>
+                        <span class="file-chip-meta">Pick a new file below to replace</span>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="file-upload-wrapper" id="fileWrapper">
+                    <input type="file" id="cheque_image" name="cheque_image" class="file-input" accept="image/*,.pdf">
+                    <div class="file-upload-label" id="fileLabel">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span>Click to upload or drag & drop</span>
+                        <small>PNG, JPG, PDF up to 16MB</small>
+                    </div>
+                </div>
+                <div id="fileChip" class="file-selected-chip" style="display:none;">
+                    <img id="fileChipThumb" class="file-chip-thumb" src="" alt="" style="display:none;">
+                    <span id="fileChipIcon" class="file-chip-icon">📄</span>
+                    <div class="file-chip-info">
+                        <span class="file-chip-name" id="fileChipName"></span>
+                        <span class="file-chip-meta" id="fileChipMeta"></span>
+                    </div>
+                    <button type="button" class="file-chip-clear" id="fileChipClear" title="Remove selection">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="remarks" class="form-label">Remarks</label>
+                <textarea id="remarks" name="remarks" class="form-input form-textarea" rows="3">{{ cheque.remarks or '' }}</textarea>
+            </div>
+        </fieldset>
+
+        <div class="form-actions">
+            <a href="{{ url_for('cheques.detail', cheque_id=cheque.cheque_id) }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function _fmtBytes(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
+function _showFileChip(chipId,nameId,metaId,iconId,thumbId,file){
+    const chip=document.getElementById(chipId),name=document.getElementById(nameId),
+          meta=document.getElementById(metaId),icon=document.getElementById(iconId),
+          thumb=document.getElementById(thumbId);
+    if(!chip)return;
+    if(name)name.textContent=file.name;
+    if(meta)meta.textContent=_fmtBytes(file.size);
+    const isImage=file.type.startsWith('image/'),isPdf=file.type==='application/pdf';
+    if(icon){icon.textContent=isPdf?'📄':isImage?'':' 📎';icon.style.display=isImage&&thumb?'none':'';}
+    if(thumb)thumb.style.display='none';
+    if(isImage&&thumb){const r=new FileReader();r.onload=e=>{thumb.src=e.target.result;thumb.style.display='';if(icon)icon.style.display='none';};r.readAsDataURL(file);}
+    chip.style.display='flex';
+}
+document.addEventListener('DOMContentLoaded', function(){
+    const input=document.getElementById('cheque_image');
+    const wrapper=document.getElementById('fileWrapper');
+    const label=document.getElementById('fileLabel');
+    if(!input)return;
+    input.addEventListener('change',function(){
+        if(this.files&&this.files[0]){
+            _showFileChip('fileChip','fileChipName','fileChipMeta','fileChipIcon','fileChipThumb',this.files[0]);
+            if(wrapper)wrapper.classList.add('has-file');
+            if(label){const s=label.querySelector('span');if(s)s.textContent=this.files[0].name;}
+        }
+    });
+    const clearBtn=document.getElementById('fileChipClear');
+    if(clearBtn){clearBtn.addEventListener('click',function(){
+        input.value='';
+        const chip=document.getElementById('fileChip');if(chip)chip.style.display='none';
+        if(wrapper){wrapper.classList.remove('has-file');}
+        if(label){const s=label.querySelector('span');if(s)s.textContent='Click to upload or drag & drop';}
+    });}
+});
+</script>
+{% endblock %}

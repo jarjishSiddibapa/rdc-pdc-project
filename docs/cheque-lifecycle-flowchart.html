@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PDC Manager — Cheque Lifecycle Flowchart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg:          #0f172a;
+    --surface:     #1e293b;
+    --surface2:    #273549;
+    --border:      #334155;
+    --text:        #e2e8f0;
+    --text-muted:  #94a3b8;
+    --text-sub:    #64748b;
+    --accent:      #38bdf8;
+    --sales:       #3b82f6;
+    --accounts:    #6366f1;
+    --good:        #10b981;
+    --bad:         #ef4444;
+    --neutral:     #6b7280;
+    --warning:     #f59e0b;
+    --sales-bg:    rgba(59,130,246,0.15);
+    --accounts-bg: rgba(99,102,241,0.15);
+    --good-bg:     rgba(16,185,129,0.15);
+    --bad-bg:      rgba(239,68,68,0.15);
+    --neutral-bg:  rgba(107,114,128,0.15);
+    --warning-bg:  rgba(245,158,11,0.15);
+    --shadow:      0 4px 24px rgba(0,0,0,0.4);
+    --radius:      12px;
+  }
+  [data-theme="light"] {
+    --bg:          #f1f5f9;
+    --surface:     #ffffff;
+    --surface2:    #f8fafc;
+    --border:      #e2e8f0;
+    --text:        #0f172a;
+    --text-muted:  #475569;
+    --text-sub:    #94a3b8;
+    --shadow:      0 4px 24px rgba(0,0,0,0.10);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+    transition: background 0.25s, color 0.25s;
+  }
+
+  /* ─── HEADER ─────────────────────────────────────────── */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    backdrop-filter: blur(8px);
+    box-shadow: var(--shadow);
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--sales) 0%, var(--accounts) 100%);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #fff; font-weight: 700; flex-shrink: 0;
+  }
+  .header-title { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  .header-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .toggle-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .toggle-btn:hover { background: var(--border); }
+
+  /* ─── LAYOUT ─────────────────────────────────────────── */
+  main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px 36px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; flex-shrink: 0;
+  }
+  .section-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .section-desc { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ─── HOW TO READ ─────────────────────────────────────── */
+  .how-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .how-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .how-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+  .how-label { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .how-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  /* ─── LEGEND ─────────────────────────────────────────── */
+  .legend-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid transparent;
+  }
+  .chip-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  .chip-sales    { background: var(--sales-bg);    border-color: var(--sales);    color: var(--sales); }
+  .chip-accounts { background: var(--accounts-bg); border-color: var(--accounts); color: var(--accounts); }
+  .chip-good     { background: var(--good-bg);     border-color: var(--good);     color: var(--good); }
+  .chip-bad      { background: var(--bad-bg);      border-color: var(--bad);      color: var(--bad); }
+  .chip-neutral  { background: var(--neutral-bg);  border-color: var(--neutral);  color: var(--neutral); }
+  .chip-warning  { background: var(--warning-bg);  border-color: var(--warning);  color: var(--warning); }
+
+  /* ─── MERMAID WRAPPER ─────────────────────────────────── */
+  #mermaid-wrapper {
+    overflow-x: auto;
+    padding: 16px 0;
+  }
+  .mermaid {
+    display: flex;
+    justify-content: center;
+  }
+  .mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* ─── TABLE ───────────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; border-radius: 8px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  thead tr {
+    background: var(--surface2);
+  }
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    line-height: 1.5;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .badge-sales    { background: var(--sales-bg);    color: var(--sales); }
+  .badge-accounts { background: var(--accounts-bg); color: var(--accounts); }
+  .badge-both     { background: var(--accounts-bg); color: var(--accounts); }
+  .badge-good     { background: var(--good-bg);     color: var(--good); }
+  .badge-bad      { background: var(--bad-bg);      color: var(--bad); }
+  .badge-neutral  { background: var(--neutral-bg);  color: var(--neutral); }
+  .badge-warning  { background: var(--warning-bg);  color: var(--warning); }
+
+  .status-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .lying-with {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  .desc-text {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .desc-text strong { color: var(--text); font-weight: 600; }
+
+  /* ─── SPECIAL FLOWS ───────────────────────────────────── */
+  .flows-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+  }
+  .flow-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .flow-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .flow-steps { display: flex; flex-direction: column; gap: 4px; }
+  .flow-step {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .flow-arrow { color: var(--text-sub); font-size: 11px; }
+
+  /* ─── FOOTER ──────────────────────────────────────────── */
+  footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    color: var(--text-sub);
+    border-top: 1px solid var(--border);
+  }
+
+  @media (max-width: 640px) {
+    main { padding: 24px 16px 60px; }
+    .section { padding: 20px; }
+    header { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo">P</div>
+    <div>
+      <div class="header-title">PDC Manager</div>
+      <div class="header-subtitle">Cheque Lifecycle Flowchart — RDC</div>
+    </div>
+  </div>
+  <button class="toggle-btn" onclick="toggleTheme()" id="theme-btn">
+    <span id="theme-icon">☀️</span>
+    <span id="theme-label">Light Mode</span>
+  </button>
+</header>
+
+<main>
+
+  <!-- ── HOW TO READ ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--warning-bg)">📖</div>
+      <div>
+        <div class="section-title">How to Read This Diagram</div>
+        <div class="section-desc">A quick guide to interpreting the flowchart below</div>
+      </div>
+    </div>
+    <div class="how-grid">
+      <div class="how-item">
+        <div class="how-icon">🔵</div>
+        <div>
+          <div class="how-label">Rounded rectangles</div>
+          <div class="how-desc">State nodes — represent the current status of a cheque. Color indicates who owns that state.</div>
+        </div>
+      </div>
+      <div class="how-item">
+        <div class="how-icon">🔷</div>
+        <div>
+          <div class="how-label">Diamond shapes</div>
+          <div class="how-desc">Decision points — a role must choose one of several resolution options (e.g. Bounce resolution).</div>
+        </div>
+      </div>
+      <div class="how-item">
+        <div class="how-icon">➡️</div>
+        <div>
+          <div class="how-label">Arrows</div>
+          <div class="how-desc">Transitions — label shows the role (emoji) and the action taken to move to the next state.</div>
+        </div>
+      </div>
+      <div class="how-item">
+        <div class="how-icon">🔁</div>
+        <div>
+          <div class="how-label">Loops</div>
+          <div class="how-desc">Back-arrows indicate valid cycles — rejection loop and redeposit loop can repeat indefinitely.</div>
+        </div>
+      </div>
+      <div class="how-item">
+        <div class="how-icon">🏁</div>
+        <div>
+          <div class="how-label">Terminal states</div>
+          <div class="how-desc">Double-bordered nodes with no outgoing arrows. Green = success, Red = legal action, Gray = neutral end.</div>
+        </div>
+      </div>
+      <div class="how-item">
+        <div class="how-icon">🏦</div>
+        <div>
+          <div class="how-label">Lying With</div>
+          <div class="how-desc">Indicates physical/logical custody — who currently holds responsibility for the cheque at each status.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROLE LEGEND ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--sales-bg)">🏷️</div>
+      <div>
+        <div class="section-title">Role Legend</div>
+        <div class="section-desc">Color coding used throughout the diagram and tables</div>
+      </div>
+    </div>
+    <div class="legend-grid">
+      <div class="chip chip-sales">
+        <div class="chip-dot" style="background:var(--sales)"></div>
+        👤 Sales Person
+      </div>
+      <div class="chip chip-accounts">
+        <div class="chip-dot" style="background:var(--accounts)"></div>
+        📋 Accounts / HO Accounts
+      </div>
+      <div class="chip chip-good">
+        <div class="chip-dot" style="background:var(--good)"></div>
+        ✅ Terminal — Success
+      </div>
+      <div class="chip chip-bad">
+        <div class="chip-dot" style="background:var(--bad)"></div>
+        ❌ Terminal — Legal Action
+      </div>
+      <div class="chip chip-neutral">
+        <div class="chip-dot" style="background:var(--neutral)"></div>
+        ⚪ Terminal — Neutral End
+      </div>
+      <div class="chip chip-warning">
+        <div class="chip-dot" style="background:var(--warning)"></div>
+        🔷 Decision Point
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAIN FLOWCHART ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--accounts-bg)">🗺️</div>
+      <div>
+        <div class="section-title">Complete Cheque Lifecycle Flowchart</div>
+        <div class="section-desc">All states, transitions, roles, and terminal outcomes — from cheque creation to final resolution</div>
+      </div>
+    </div>
+    <div id="mermaid-wrapper">
+      <div class="mermaid" id="mermaid-diagram">
+%%{init: {
+  'theme': 'dark',
+  'themeVariables': {
+    'background': '#1e293b',
+    'primaryColor': '#3b82f6',
+    'primaryTextColor': '#e2e8f0',
+    'primaryBorderColor': '#334155',
+    'lineColor': '#64748b',
+    'secondaryColor': '#6366f1',
+    'tertiaryColor': '#273549',
+    'edgeLabelBackground': '#1e293b',
+    'clusterBkg': '#273549',
+    'fontSize': '14px',
+    'fontFamily': 'Inter, system-ui, sans-serif'
+  }
+}}%%
+flowchart TD
+
+    %% ── CREATION ──────────────────────────────────────────────
+    START(["🏁 Sales creates cheque\n+ attaches image"])
+
+    START -->|"👤 Sales — Set initial status"| CHOICE{{"Initial\nStatus?"}}
+
+    %% ── ENTRY STATES ──────────────────────────────────────────
+    CHOICE -->|"Pending with customer"| PWC["📬 Pending with Customer\n🏦 Held by: Customer"]
+    CHOICE -->|"Collected immediately"| CBSP["🧾 Collected by Sales Person\n🏦 Held by: Sales"]
+
+    PWC -->|"👤 Sales — Mark collected"| CBSP
+
+    %% ── ACCOUNTS REVIEW ───────────────────────────────────────
+    CBSP -->|"📋 Accounts — Accept"| ACC["✔️ Accepted\n🏦 Held by: Accounts"]
+    CBSP -->|"📋 Accounts — Reject"| REJ["🚫 Rejected\n🏦 Held by: Sales"]
+
+    %% ── REJECTION LOOP ────────────────────────────────────────
+    REJ -->|"👤 Sales — Re-collect"| CBSP
+
+    %% ── FROM ACCEPTED ─────────────────────────────────────────
+    ACC -->|"📋 Accounts — Deposit"| DEP["🏦 Deposited\n🏦 Held by: Bank"]
+    ACC -->|"📋 Accounts — Reject"| REJ
+    ACC -->|"👤 Sales — NEFT received"| NEFT["💸 NEFT Received\n🏦 Held by: Credit Control"]
+    ACC -->|"👤 Sales — New cheque"| NCR(["🔄 New Cheque Received\n⚪ Replaced by new record"])
+    ACC -->|"👤 Sales — Cancel order"| OC(["🚫 Order Cancelled\n⚪ Order void"])
+
+    %% ── DEPOSIT OUTCOMES ──────────────────────────────────────
+    DEP -->|"📋 Accounts — Mark cleared"| CLR(["✅ Cleared\n🏆 Successfully recovered"])
+    DEP -->|"📋 Accounts — Mark bounced"| BNC["⚡ Bounced\n🏦 Held by: Credit Control"]
+
+    %% ── BOUNCE RESOLUTION ─────────────────────────────────────
+    BNC -->|"📋 Accounts — Choose resolution\n+ attach document"| BRES{{"Bounce\nResolution?"}}
+
+    BRES -->|"Legal route"| LNI(["⚖️ Legal Notice Initiated\n❌ Legal proceedings started"])
+    BRES -->|"NEFT route"| CNEFT(["✅ Cleared via NEFT\n🏆 Settled via bank transfer"])
+    BRES -->|"Redeposit route"| RDEP["🔁 Redeposited\n🏦 Held by: Accounts"]
+
+    %% ── REDEPOSIT LOOP ────────────────────────────────────────
+    RDEP -->|"📋 Accounts — Deposit again"| DEP
+    RDEP -->|"📋 Accounts — Reject"| REJ
+
+    %% ── NEFT CONFIRMATION ─────────────────────────────────────
+    NEFT -->|"📋 Accounts — Confirm NEFT"| CNEFT
+
+    %% ── CLASS DEFINITIONS ─────────────────────────────────────
+    classDef salesState    fill:#1d3461,stroke:#3b82f6,stroke-width:2px,color:#93c5fd,rx:8
+    classDef accountsState fill:#1e1b4b,stroke:#6366f1,stroke-width:2px,color:#a5b4fc,rx:8
+    classDef goodTerminal  fill:#064e3b,stroke:#10b981,stroke-width:3px,color:#6ee7b7,rx:8
+    classDef badTerminal   fill:#450a0a,stroke:#ef4444,stroke-width:3px,color:#fca5a5,rx:8
+    classDef neutTerminal  fill:#1c1917,stroke:#6b7280,stroke-width:3px,color:#d1d5db,rx:8
+    classDef decision      fill:#451a03,stroke:#f59e0b,stroke-width:2px,color:#fcd34d
+    classDef startNode     fill:#0c2340,stroke:#38bdf8,stroke-width:2px,color:#7dd3fc,rx:16
+    classDef creditState   fill:#2d1b4e,stroke:#8b5cf6,stroke-width:2px,color:#c4b5fd,rx:8
+
+    class START startNode
+    class PWC,NCR,OC salesState
+    class CBSP,REJ salesState
+    class ACC,DEP,RDEP accountsState
+    class BNC,NEFT creditState
+    class CLR,CNEFT goodTerminal
+    class LNI badTerminal
+    class NCR,OC neutTerminal
+    class CHOICE,BRES decision
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SPECIAL FLOWS ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--warning-bg)">🔁</div>
+      <div>
+        <div class="section-title">Special Flows &amp; Loops</div>
+        <div class="section-desc">Key behavioral patterns to be aware of</div>
+      </div>
+    </div>
+    <div class="flows-grid">
+      <div class="flow-card">
+        <div class="flow-card-title" style="color:var(--sales)">🔵 Rejection Loop</div>
+        <div class="flow-steps">
+          <div class="flow-step">Accepted or Collected</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Accounts rejects</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Status → <strong>Rejected</strong> (back to Sales)</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Sales re-collects</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Status → <strong>Collected by Sales Person</strong></div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> <em>Can repeat indefinitely</em></div>
+        </div>
+      </div>
+      <div class="flow-card">
+        <div class="flow-card-title" style="color:var(--bad)">⚡ Bounce Resolution</div>
+        <div class="flow-steps">
+          <div class="flow-step">Cheque <strong>Bounced</strong></div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Accounts opens Resolution form</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Must attach supporting document</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Choose: <strong>Legal / NEFT / Redeposit</strong></div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Routes to respective terminal or loop</div>
+        </div>
+      </div>
+      <div class="flow-card">
+        <div class="flow-card-title" style="color:var(--accounts)">🔁 Redeposit Loop</div>
+        <div class="flow-steps">
+          <div class="flow-step"><strong>Redeposited</strong> (resolution chosen)</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Accounts deposits again</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Status → <strong>Deposited</strong></div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> May <strong>Bounce</strong> again</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Can be redeposited again</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> <em>Loop can repeat</em></div>
+        </div>
+      </div>
+      <div class="flow-card">
+        <div class="flow-card-title" style="color:var(--good)">💸 NEFT Path</div>
+        <div class="flow-steps">
+          <div class="flow-step">Cheque is in <strong>Accepted</strong> state</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Customer pays via bank transfer</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Sales marks <strong>NEFT Received</strong></div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Accounts confirms payment</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Terminal: <strong>Cleared via NEFT</strong></div>
+        </div>
+      </div>
+      <div class="flow-card">
+        <div class="flow-card-title" style="color:var(--neutral)">🔄 Replacement Cheque</div>
+        <div class="flow-steps">
+          <div class="flow-step">Cheque is in <strong>Accepted</strong> state</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Customer provides new cheque</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Sales marks <strong>New Cheque Received</strong></div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> This cheque → terminal (neutral)</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> A <em>new cheque record</em> is created</div>
+        </div>
+      </div>
+      <div class="flow-card">
+        <div class="flow-card-title" style="color:var(--warning)">📋 Cheque Creation</div>
+        <div class="flow-steps">
+          <div class="flow-step">Sales person creates new cheque</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Fills: Customer, Bank, Amount, Date, Type</div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Attaches cheque image <strong>(mandatory)</strong></div>
+          <div class="flow-step"><span class="flow-arrow">↓</span> Chooses initial status:</div>
+          <div class="flow-step">&nbsp;&nbsp;• <strong>Collected by Sales Person</strong></div>
+          <div class="flow-step">&nbsp;&nbsp;• <strong>Pending with Customer</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STATUS REFERENCE TABLE ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--good-bg)">📊</div>
+      <div>
+        <div class="section-title">Status Reference Table</div>
+        <div class="section-desc">All 13 statuses — role, custody, type, and description</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Status</th>
+            <th>Who Acts</th>
+            <th>Lying With</th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">01</td>
+            <td><span class="status-name">Pending with Customer</span></td>
+            <td><span class="badge badge-sales">👤 Sales</span></td>
+            <td><span class="lying-with">🧍 Customer</span></td>
+            <td><span class="badge badge-warning">⏳ In Progress</span></td>
+            <td class="desc-text">Cheque created but not yet picked up from the customer. Sales must follow up and collect it.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">02</td>
+            <td><span class="status-name">Collected by Sales Person</span></td>
+            <td><span class="badge badge-sales">👤 Sales</span></td>
+            <td><span class="lying-with">👤 Sales</span></td>
+            <td><span class="badge badge-warning">⏳ In Progress</span></td>
+            <td class="desc-text">Cheque is physically with the Sales person. Must be submitted to Accounts for review. Entry point for Accounts workflow.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">03</td>
+            <td><span class="status-name">Accepted</span></td>
+            <td><span class="badge badge-accounts">📋 Accounts</span></td>
+            <td><span class="lying-with">📋 Accounts</span></td>
+            <td><span class="badge badge-warning">⏳ In Progress</span></td>
+            <td class="desc-text">Accounts has verified and accepted the cheque. From here it can be deposited, rejected, or resolved via NEFT/replacement/cancellation.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">04</td>
+            <td><span class="status-name">Rejected</span></td>
+            <td><span class="badge badge-accounts">📋 Accounts</span></td>
+            <td><span class="lying-with">👤 Sales</span></td>
+            <td><span class="badge badge-warning">⏳ In Progress</span></td>
+            <td class="desc-text">Cheque rejected by Accounts (e.g. discrepancy, incorrect details). Returns to Sales for re-collection. <strong>Rejection loop</strong> can repeat.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">05</td>
+            <td><span class="status-name">Deposited</span></td>
+            <td><span class="badge badge-accounts">📋 Accounts</span></td>
+            <td><span class="lying-with">🏦 Bank</span></td>
+            <td><span class="badge badge-warning">⏳ In Progress</span></td>
+            <td class="desc-text">Cheque submitted to the bank for clearing. Awaiting bank's response — will either Clear or Bounce.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">06</td>
+            <td><span class="status-name">Cleared</span></td>
+            <td><span class="badge badge-accounts">📋 Accounts</span></td>
+            <td><span class="lying-with">📋 HO Accounts</span></td>
+            <td><span class="badge badge-good">✅ Terminal</span></td>
+            <td class="desc-text"><strong>Successful outcome.</strong> Bank has cleared the cheque. Payment fully recovered. No further action needed.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">07</td>
+            <td><span class="status-name">Bounced</span></td>
+            <td><span class="badge badge-accounts">📋 Accounts</span></td>
+            <td><span class="lying-with">🔒 Credit Control</span></td>
+            <td><span class="badge badge-bad">❗ Action Needed</span></td>
+            <td class="desc-text">Bank rejected the cheque. Accounts must resolve via <strong>Resolution form</strong>: attach document and choose Legal / NEFT / Redeposit.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">08</td>
+            <td><span class="status-name">Redeposited</span></td>
+            <td><span class="badge badge-accounts">📋 Accounts</span></td>
+            <td><span class="lying-with">📋 Accounts</span></td>
+            <td><span class="badge badge-warning">⏳ In Progress</span></td>
+            <td class="desc-text">Accounts chose to redeposit after a bounce. Cheque will be sent to bank again. May bounce again — <strong>redeposit loop</strong> possible.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">09</td>
+            <td><span class="status-name">Legal Notice Initiated</span></td>
+            <td><span class="badge badge-accounts">📋 Accounts</span></td>
+            <td><span class="lying-with">🔒 Credit Control</span></td>
+            <td><span class="badge badge-bad">❌ Terminal</span></td>
+            <td class="desc-text"><strong>Legal escalation.</strong> Accounts chose legal route after bounce. Case is now with Credit Control / legal team. Requires supporting document.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">10</td>
+            <td><span class="status-name">Cleared via NEFT</span></td>
+            <td><span class="badge badge-accounts">📋 Accounts</span></td>
+            <td><span class="lying-with">📋 HO Accounts</span></td>
+            <td><span class="badge badge-good">✅ Terminal</span></td>
+            <td class="desc-text"><strong>Successful outcome.</strong> Customer settled the amount via bank transfer (NEFT/RTGS). Accounts confirms. Payment recovered without clearing the physical cheque.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">11</td>
+            <td><span class="status-name">New Cheque Received</span></td>
+            <td><span class="badge badge-sales">👤 Sales</span></td>
+            <td><span class="lying-with">👤 Sales</span></td>
+            <td><span class="badge badge-neutral">⚪ Terminal</span></td>
+            <td class="desc-text"><strong>Replaced.</strong> Customer issued a replacement cheque. This cheque record ends here. A new cheque record is created for the replacement.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">12</td>
+            <td><span class="status-name">NEFT Received</span></td>
+            <td><span class="badge badge-sales">👤 Sales</span></td>
+            <td><span class="lying-with">🔒 Credit Control</span></td>
+            <td><span class="badge badge-warning">⏳ In Progress</span></td>
+            <td class="desc-text">Sales reports that the customer paid via bank transfer. Awaiting Accounts confirmation before marking Cleared via NEFT.</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-sub);font-size:12px">13</td>
+            <td><span class="status-name">Order Cancelled</span></td>
+            <td><span class="badge badge-sales">👤 Sales</span></td>
+            <td><span class="lying-with">👤 Sales</span></td>
+            <td><span class="badge badge-neutral">⚪ Terminal</span></td>
+            <td class="desc-text"><strong>Order void.</strong> The underlying order was cancelled while the cheque was in Accepted state. No payment will be collected.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  RDC PDC Manager &nbsp;·&nbsp; Cheque Lifecycle Documentation &nbsp;·&nbsp; Generated for stakeholder review
+</footer>
+
+<script>
+  // ── THEME TOGGLE ────────────────────────────────────────
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    document.getElementById('theme-icon').textContent  = isDark ? '🌙' : '☀️';
+    document.getElementById('theme-label').textContent = isDark ? 'Dark Mode' : 'Light Mode';
+    // Re-render Mermaid with appropriate theme
+    rerenderMermaid(isDark ? 'light' : 'dark');
+  }
+
+  // ── MERMAID RENDERING ────────────────────────────────────
+  const DIAGRAM_SRC = document.getElementById('mermaid-diagram').textContent;
+
+  async function rerenderMermaid(theme) {
+    const wrapper = document.getElementById('mermaid-diagram');
+    const bg      = theme === 'dark' ? '#1e293b' : '#ffffff';
+
+    const newSrc = DIAGRAM_SRC.replace(
+      /'theme': '(dark|light|default)'/,
+      `'theme': '${theme === 'dark' ? 'dark' : 'default'}'`
+    ).replace(
+      /'background': '[^']+'/,
+      `'background': '${bg}'`
+    );
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: theme === 'dark' ? 'dark' : 'default',
+      flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+      themeVariables: theme === 'dark'
+        ? {
+            background: '#1e293b',
+            primaryColor: '#3b82f6',
+            primaryTextColor: '#e2e8f0',
+            primaryBorderColor: '#334155',
+            lineColor: '#64748b',
+            secondaryColor: '#6366f1',
+            tertiaryColor: '#273549',
+            edgeLabelBackground: '#1e293b',
+            fontSize: '14px',
+            fontFamily: 'Inter, system-ui, sans-serif'
+          }
+        : {
+            background: '#ffffff',
+            primaryColor: '#3b82f6',
+            primaryTextColor: '#1e293b',
+            primaryBorderColor: '#cbd5e1',
+            lineColor: '#64748b',
+            secondaryColor: '#6366f1',
+            tertiaryColor: '#f8fafc',
+            edgeLabelBackground: '#ffffff',
+            fontSize: '14px',
+            fontFamily: 'Inter, system-ui, sans-serif'
+          }
+    });
+
+    try {
+      wrapper.removeAttribute('data-processed');
+      wrapper.textContent = newSrc;
+      await mermaid.run({ nodes: [wrapper] });
+    } catch(e) {
+      console.warn('Mermaid re-render error:', e);
+    }
+  }
+
+  // ── INIT ─────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', async () => {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+      themeVariables: {
+        background: '#1e293b',
+        primaryColor: '#3b82f6',
+        primaryTextColor: '#e2e8f0',
+        primaryBorderColor: '#334155',
+        lineColor: '#64748b',
+        secondaryColor: '#6366f1',
+        tertiaryColor: '#273549',
+        edgeLabelBackground: '#1e293b',
+        fontSize: '14px',
+        fontFamily: 'Inter, system-ui, sans-serif'
+      }
+    });
+    await mermaid.run();
+  });
+</script>
+</body>
+</html>

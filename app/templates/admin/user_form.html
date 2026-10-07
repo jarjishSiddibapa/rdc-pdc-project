@@ -1,0 +1,476 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if user else 'New' }} User — {{ app_name }}{% endblock %}
+{% block page_title %}{{ 'Edit User' if user else 'Create User' }}{% endblock %}
+
+{% block content %}
+{% set is_erp_pending = user and user._is_active == 'N' and user.salesrep_id %}
+
+<div style="display:grid;grid-template-columns:minmax(0,660px) minmax(0,320px);gap:1.25rem;align-items:start;">
+
+{# ── LEFT: Main form ──────────────────────────────────────────── #}
+<div class="content-card">
+    <div class="card-header">
+        <h2 class="card-title">{{ 'Edit User — ' + user.full_name if user else 'Create New User' }}</h2>
+        {% if is_erp_pending %}
+        <span class="tag tag-orange">ERP Import — Needs Activation</span>
+        {% elif user and user._is_active == 'N' %}
+        <span class="tag tag-gray">Inactive</span>
+        {% endif %}
+    </div>
+
+    {% if is_erp_pending %}
+    <!-- ── ERP activation banner ─────────────────────────────── -->
+    <div style="padding:.85rem 1.25rem;background:#fff7ed;border-bottom:1px solid #fed7aa;font-size:.875rem;">
+        <strong style="color:#c2410c;">This user was imported from Oracle ERP.</strong>
+        Assign a location and set a password to activate their account.
+        ERP Salesrep ID: <code>{{ user.salesrep_id }}</code>
+        {% if user.sales_person_id %} / Number: <code>{{ user.sales_person_id }}</code>{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Two separate forms: one for activation, one for normal edit -->
+    {% if is_erp_pending %}
+    <form method="POST" action="{{ url_for('admin.activate_user', user_id=user.user_id) }}" class="form-body">
+    {% elif user %}
+    <form method="POST" action="{{ url_for('admin.edit_user', user_id=user.user_id) }}" class="form-body">
+    {% else %}
+    <form method="POST" action="{{ url_for('admin.create_user') }}" class="form-body">
+    {% endif %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-row-2">
+            <div class="form-group">
+                <label class="form-label">Username <span class="required">*</span></label>
+                <input type="text" name="username" class="form-input"
+                       value="{{ user.username if user else '' }}"
+                       required placeholder="e.g. john.doe" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Full Name <span class="required">*</span></label>
+                <input type="text" name="full_name" class="form-input"
+                       value="{{ user.full_name if user else '' }}" required placeholder="John Doe">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Role <span class="required">*</span></label>
+            <select id="role" name="role" class="form-input ts-select" required {{ 'disabled' if is_erp_pending }}>
+                <option value="">— Select Role —</option>
+                {% for r in roles %}
+                <option value="{{ r }}" {{ 'selected' if user and user.role == r }}>{{ r }}</option>
+                {% endfor %}
+            </select>
+            {% if is_erp_pending %}<input type="hidden" name="role" value="{{ user.role }}">{% endif %}
+
+            {# Dynamic role info panel — populated by JS on role change #}
+            <div id="role-info-panel" style="display:none;margin-top:.65rem;
+                 border-radius:var(--radius-md);border:1px solid var(--border-color);
+                 overflow:hidden;animation:flash-slide-in .22s var(--ease-spring);">
+                <div id="rip-header" style="display:flex;align-items:center;gap:.6rem;
+                     padding:.6rem .85rem;border-bottom:1px solid var(--border-color);">
+                    <span id="rip-icon" style="font-size:1.1rem;"></span>
+                    <strong id="rip-name" style="font-size:.82rem;"></strong>
+                    <span id="rip-summary" style="font-size:.78rem;color:var(--text-muted);margin-left:.15rem;"></span>
+                </div>
+                <ul id="rip-perms" style="list-style:none;padding:.55rem .85rem;margin:0;
+                    display:grid;grid-template-columns:1fr 1fr;gap:.3rem .75rem;"></ul>
+            </div>
+        </div>
+
+        <div class="form-row-2">
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" name="email" class="form-input"
+                       value="{{ user.email if user else '' }}" placeholder="user@example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Phone</label>
+                <input type="tel" name="phone" class="form-input"
+                       value="{{ user.phone if user else '' }}" placeholder="+91 XXXXX XXXXX">
+            </div>
+        </div>
+
+        <!-- Location — multi-select, required for activation -->
+        <div class="form-group">
+            <label class="form-label">
+                Location(s) <span class="required">*</span>
+                {% if is_erp_pending %}<span style="color:#c2410c;font-weight:600;"> ← Required to activate</span>{% endif %}
+            </label>
+            <!-- Hidden primary location_id kept in sync with first selection -->
+            <input type="hidden" name="location_id" id="locationIdHidden">
+            <select name="location_ids" id="locationIdsSelect"
+                    class="form-input ts-select" multiple required>
+                {% for loc in locations %}
+                <option value="{{ loc.location_id }}"
+                    {% if user %}
+                        {% if user.locations %}{{ 'selected' if loc in user.locations }}
+                        {% elif user.location_id == loc.location_id %}selected{% endif %}
+                    {% endif %}>
+                    {{ loc.location_name }}{% if loc.is_head_office == 'Y' %} ★ Head Office{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <small class="form-hint">Click to select, click again to deselect. Head Office (★) users can access all locations.</small>
+        </div>
+
+        <!-- ERP IDs (Sales only) -->
+        {% set is_erp_user = user and user.salesrep_id is not none %}
+        <div class="form-group" id="sales-person-id-group"
+             style="{{ '' if (not user or user.role == 'Sales') else 'display:none' }}">
+
+            {% if is_erp_user %}
+            {# ── ERP-sourced: show read-only locked view ── #}
+            <div style="border:1px solid rgba(245,158,11,.35);border-radius:var(--radius-md);
+                        background:rgba(245,158,11,.06);padding:.75rem 1rem;">
+                <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span style="font-size:.78rem;font-weight:600;color:#d97706;">ERP-Managed Fields — Read Only</span>
+                </div>
+                <div class="form-row-2">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label" style="color:var(--text-muted);">ERP Salesrep Number</label>
+                        <div class="form-input"
+                             style="background:var(--bg-card-hover);color:var(--text-muted);
+                                    cursor:not-allowed;font-family:monospace;font-size:13px;">
+                            {{ user.sales_person_id or '—' }}
+                        </div>
+                        {# Hidden so form still sends existing value without change #}
+                        <input type="hidden" name="sales_person_id" value="{{ user.sales_person_id or '' }}">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label" style="color:var(--text-muted);">ERP Salesrep ID</label>
+                        <div class="form-input"
+                             style="background:var(--bg-card-hover);color:var(--text-muted);
+                                    cursor:not-allowed;font-family:monospace;font-size:13px;">
+                            {{ user.salesrep_id or '—' }}
+                        </div>
+                        <input type="hidden" name="salesrep_id" value="{{ user.salesrep_id or '' }}">
+                    </div>
+                </div>
+                <small style="display:block;margin-top:.5rem;font-size:.74rem;color:#92400e;">
+                    These values were imported from Oracle ERP and cannot be modified here.
+                    Changes are managed exclusively through the ERP sync process.
+                </small>
+            </div>
+            {% else %}
+            {# ── Manually-created user: editable ── #}
+            <div class="form-row-2">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">ERP Salesrep Number</label>
+                    <input type="text" name="sales_person_id" class="form-input"
+                           value="{{ user.sales_person_id if user else '' }}"
+                           placeholder="SR.SALESREP_NUMBER (string)">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">ERP Salesrep ID</label>
+                    <input type="number" name="salesrep_id" class="form-input"
+                           value="{{ user.salesrep_id if user else '' }}"
+                           placeholder="SR.SALESREP_ID (numeric)">
+                </div>
+            </div>
+            <small class="form-hint" style="margin-top:.4rem;display:block;">
+                Leave blank unless manually linking to an ERP salesrep record.
+                Once an ERP sync runs, these values will be managed automatically.
+            </small>
+            {% endif %}
+        </div>
+
+        <!-- Password section -->
+        {% if is_erp_pending %}
+        <!-- Activation: password is required -->
+        <div class="form-group" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:.5rem;padding:1rem 1.25rem;">
+            <label class="form-label" style="color:#15803d;">
+                Set Password <span class="required">*</span>
+                <span style="font-weight:400;color:#166534;">— required to activate account</span>
+            </label>
+            <input type="password" id="pw-field" name="new_password" class="form-input" required
+                   placeholder="Min 8 chars, upper, lower, number, special" autocomplete="new-password">
+            <div class="pw-strength-bar" id="pw-strength-bar"><div id="pw-strength-fill"></div></div>
+            <small id="pw-strength-msg" class="form-hint"></small>
+        </div>
+        {% elif user %}
+        <!-- Edit: password is optional -->
+        <div class="form-group">
+            <label class="form-label">Reset Password</label>
+            <input type="password" id="pw-field" name="new_password" class="form-input"
+                   placeholder="Leave blank to keep current password" autocomplete="new-password">
+            <div class="pw-strength-bar" id="pw-strength-bar"><div id="pw-strength-fill"></div></div>
+            <small id="pw-strength-msg" class="form-hint"></small>
+        </div>
+        {% else %}
+        <!-- Create: password is required -->
+        <div class="form-group">
+            <label class="form-label">Password <span class="required">*</span></label>
+            <input type="password" id="pw-field" name="password" class="form-input" required
+                   placeholder="Min 8 chars, upper, lower, number, special" autocomplete="new-password">
+            <div class="pw-strength-bar" id="pw-strength-bar"><div id="pw-strength-fill"></div></div>
+            <small id="pw-strength-msg" class="form-hint"></small>
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <a href="{{ url_for('admin.users') }}" class="btn btn-secondary">Cancel</a>
+            {% if is_erp_pending %}
+            <button type="submit" class="btn btn-primary" style="background:#16a34a;border-color:#16a34a;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:.35rem;vertical-align:middle;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Activate User
+            </button>
+            {% else %}
+            <button type="submit" class="btn btn-primary">{{ 'Update' if user else 'Create' }} User</button>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+{# ── RIGHT: Role reference card ───────────────────────────────── #}
+<div class="content-card" style="position:sticky;top:calc(var(--topbar-height) + 16px);">
+    <div class="card-header" style="padding:14px 16px;">
+        <h2 class="card-title" style="font-size:.82rem;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Available Roles
+        </h2>
+    </div>
+    <div class="card-body" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;">
+
+        <div class="role-ref-item" data-role="Admin">
+            <div class="role-ref-header">
+                <span class="role-ref-dot" style="background:#6366f1;"></span>
+                <strong>Admin</strong>
+                <span class="role-ref-badge" style="background:rgba(99,102,241,.12);color:#818cf8;">Full access</span>
+            </div>
+            <p class="role-ref-desc">Manages users, system settings, ERP sync, and has visibility across all locations and all cheques.</p>
+        </div>
+
+        <div class="role-ref-item" data-role="Sales">
+            <div class="role-ref-header">
+                <span class="role-ref-dot" style="background:#10b981;"></span>
+                <strong>Sales</strong>
+                <span class="role-ref-badge" style="background:rgba(16,185,129,.12);color:#34d399;">Entry</span>
+            </div>
+            <p class="role-ref-desc">Creates cheques and manages customers. Sees only their own cheques within their assigned location.</p>
+        </div>
+
+        <div class="role-ref-item" data-role="Accounts">
+            <div class="role-ref-header">
+                <span class="role-ref-dot" style="background:#f59e0b;"></span>
+                <strong>Accounts</strong>
+                <span class="role-ref-badge" style="background:rgba(245,158,11,.12);color:#fbbf24;">Approval</span>
+            </div>
+            <p class="role-ref-desc">Reviews collected cheques, accepts them for deposit, and prepares deposit batches for their location.</p>
+        </div>
+
+        <div class="role-ref-item" data-role="HO_Accounts">
+            <div class="role-ref-header">
+                <span class="role-ref-dot" style="background:#3b82f6;"></span>
+                <strong>HO Accounts</strong>
+                <span class="role-ref-badge" style="background:rgba(59,130,246,.12);color:#60a5fa;">Head Office</span>
+            </div>
+            <p class="role-ref-desc">Clears deposited cheques, manages reconciliation, and has cross-location reporting access.</p>
+        </div>
+
+    </div>
+</div>
+
+</div>{# /grid #}
+
+<style>
+.pw-strength-bar{height:4px;border-radius:2px;background:var(--border);margin-top:.45rem;overflow:hidden;display:none;}
+.pw-strength-bar.visible{display:block;}
+#pw-strength-fill{height:100%;width:0;border-radius:2px;transition:width .25s,background .25s;}
+</style>
+<script>
+(function () {
+    // ── Password strength meter ──────────────────────────────────
+    var pwField = document.getElementById('pw-field');
+    var pwBar   = document.getElementById('pw-strength-bar');
+    var pwFill  = document.getElementById('pw-strength-fill');
+    var pwMsg   = document.getElementById('pw-strength-msg');
+
+    function checkStrength(val) {
+        if (!val) return { score: 0, label: '', color: '' };
+        var score = 0;
+        var missing = [];
+        if (val.length >= 8)              score++; else missing.push('8+ chars');
+        if (/[A-Z]/.test(val))            score++; else missing.push('uppercase');
+        if (/[a-z]/.test(val))            score++; else missing.push('lowercase');
+        if (/\d/.test(val))               score++; else missing.push('number');
+        if (/[^A-Za-z0-9]/.test(val))    score++; else missing.push('special char');
+
+        var map = [
+            { label: 'Very weak',  color: '#ef4444' },
+            { label: 'Weak',       color: '#f97316' },
+            { label: 'Fair',       color: '#eab308' },
+            { label: 'Good',       color: '#22c55e' },
+            { label: 'Strong ✓',   color: '#10b981' },
+        ];
+        var entry = map[score - 1] || { label: '', color: '#ef4444' };
+        return { score: score, label: entry.label, color: entry.color, missing: missing };
+    }
+
+    if (pwField && pwBar && pwFill && pwMsg) {
+        pwField.addEventListener('input', function () {
+            var val = this.value;
+            if (!val) {
+                pwBar.classList.remove('visible');
+                pwMsg.textContent = '';
+                return;
+            }
+            pwBar.classList.add('visible');
+            var r = checkStrength(val);
+            pwFill.style.width = (r.score * 20) + '%';
+            pwFill.style.background = r.color;
+            pwMsg.style.color = r.color;
+            if (r.missing && r.missing.length) {
+                pwMsg.textContent = r.label + ' — missing: ' + r.missing.join(', ');
+            } else {
+                pwMsg.textContent = r.label;
+            }
+        });
+    }
+
+    // ── Role toggle: show ERP fields only for Sales ──────────────
+    var roleEl = document.getElementById('role');
+    var erpGroup = document.getElementById('sales-person-id-group');
+    if (roleEl && erpGroup) {
+        function toggleErp() {
+            erpGroup.style.display = roleEl.value === 'Sales' ? '' : 'none';
+        }
+        roleEl.addEventListener('change', toggleErp);
+        toggleErp();
+    }
+
+    // ── Role info panel + right-card highlight ───────────────────
+    var ROLE_INFO = {
+        'Admin': {
+            color: '#6366f1',
+            icon: '🛡️',
+            summary: 'Full system access',
+            perms: [
+                'Manage all users & settings',
+                'ERP sync & configuration',
+                'View all locations & cheques',
+                'Access audit logs & reports',
+                'Bank & location master',
+                'Email & system settings',
+            ]
+        },
+        'Sales': {
+            color: '#10b981',
+            icon: '📋',
+            summary: 'Cheque entry & customers',
+            perms: [
+                'Create & submit new cheques',
+                'Add & edit customers',
+                'View own cheques only',
+                'Location-scoped dashboard',
+            ]
+        },
+        'Accounts': {
+            color: '#f59e0b',
+            icon: '🏦',
+            summary: 'Approval & deposit',
+            perms: [
+                'Review collected cheques',
+                'Accept cheques for deposit',
+                'Prepare deposit batches',
+                'Location-scoped access',
+            ]
+        },
+        'HO_Accounts': {
+            color: '#3b82f6',
+            icon: '🏢',
+            summary: 'Head Office clearance',
+            perms: [
+                'Mark cheques as Cleared',
+                'Reconciliation management',
+                'Cross-location visibility',
+                'Full reports & analytics',
+            ]
+        },
+    };
+
+    var ripPanel  = document.getElementById('role-info-panel');
+    var ripHeader = document.getElementById('rip-header');
+    var ripIcon   = document.getElementById('rip-icon');
+    var ripName   = document.getElementById('rip-name');
+    var ripSumm   = document.getElementById('rip-summary');
+    var ripPerms  = document.getElementById('rip-perms');
+
+    function updateRolePanel(val) {
+        // Highlight the matching row in the right-card
+        document.querySelectorAll('.role-ref-item').forEach(function (el) {
+            var match = el.dataset.role === val;
+            el.style.background   = match ? 'color-mix(in srgb, var(--accent-primary) 7%, transparent)' : '';
+            el.style.borderColor  = match ? 'color-mix(in srgb, var(--accent-primary) 30%, transparent)' : '';
+            el.style.borderRadius = match ? 'var(--radius-md)' : '';
+            el.style.outline      = match ? '1px solid color-mix(in srgb, var(--accent-primary) 22%, transparent)' : '';
+        });
+
+        var info = ROLE_INFO[val];
+        if (!info || !ripPanel) return;
+
+        // Populate inline panel
+        ripIcon.textContent  = info.icon;
+        ripName.textContent  = val.replace('_', ' ');
+        ripSumm.textContent  = '— ' + info.summary;
+        ripHeader.style.background = 'color-mix(in srgb, ' + info.color + ' 10%, var(--bg-card))';
+        ripHeader.style.borderBottomColor = 'color-mix(in srgb, ' + info.color + ' 25%, var(--border-color))';
+        ripPanel.style.borderColor = 'color-mix(in srgb, ' + info.color + ' 30%, var(--border-color))';
+
+        // Build permission list
+        ripPerms.innerHTML = '';
+        info.perms.forEach(function (p) {
+            var li = document.createElement('li');
+            li.style.cssText = 'display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:var(--text-secondary);';
+            li.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="' +
+                info.color + '" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+            li.appendChild(document.createTextNode(p));
+            ripPerms.appendChild(li);
+        });
+
+        ripPanel.style.display = '';
+        // Re-trigger entrance animation
+        ripPanel.style.animation = 'none';
+        ripPanel.offsetHeight; // force reflow
+        ripPanel.style.animation = '';
+    }
+
+    if (roleEl) {
+        roleEl.addEventListener('change', function () { updateRolePanel(roleEl.value); });
+        // Also fire on Tom Select's custom event
+        roleEl.addEventListener('change', function () { updateRolePanel(this.value); });
+        // Initialise on load if a role is already selected (edit mode)
+        if (roleEl.value) updateRolePanel(roleEl.value);
+    }
+
+    // ── Sync primary location_id from first selected location ────
+    var locSelect = document.getElementById('locationIdsSelect');
+    var locHidden = document.getElementById('locationIdHidden');
+
+    function syncPrimaryLocation() {
+        // Tom Select keeps the underlying <select> in sync,
+        // so selectedOptions is always current
+        var selected = Array.from(locSelect.selectedOptions);
+        locHidden.value = selected.length ? selected[0].value : '';
+    }
+
+    if (locSelect && locHidden) {
+        // Sync on every change
+        locSelect.addEventListener('change', syncPrimaryLocation);
+        // Sync on form submit (catches Tom Select lazy updates)
+        var frm = locSelect.closest('form');
+        if (frm) frm.addEventListener('submit', syncPrimaryLocation);
+        // Set initial value
+        syncPrimaryLocation();
+    }
+})();
+</script>
+{% endblock %}

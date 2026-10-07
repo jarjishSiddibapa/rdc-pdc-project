@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}Notifications — {{ app_name }}{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+
+{% block content %}
+<style>
+/* ── Notification rows ───────────────────────────────────────── */
+.notif-item-full {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background .15s;
+}
+.notif-item-full:last-child { border-bottom: none; }
+.notif-item-full:hover      { background: var(--bg-hover, rgba(0,0,0,.025)); }
+.notif-item-full.notif-unread           { background: rgba(99,102,241,.05); }
+.notif-item-full.notif-unread:hover     { background: rgba(99,102,241,.08); }
+
+/* Checkbox */
+.notif-cb-wrap {
+    padding-top: 3px;
+    flex-shrink: 0;
+}
+.notif-cb-wrap input[type="checkbox"],
+#selectAllCb {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+}
+
+/* Actions slot (right side of each row) */
+.notif-row-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* "Mark Read" fades out after AJAX success */
+.mark-read-btn.fading {
+    opacity: 0;
+    transition: opacity .25s;
+    pointer-events: none;
+}
+</style>
+
+{# ── Actions bar ─────────────────────────────────────────────── #}
+<div class="actions-bar">
+    {# Left: select-all checkbox + dynamic label #}
+    <div style="display:flex;align-items:center;gap:10px;">
+        {% if notifications %}
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;">
+            <input type="checkbox" id="selectAllCb" onchange="toggleSelectAll(this.checked)">
+            <span id="selectAllLabel" style="font-size:.82rem;color:var(--text-muted);white-space:nowrap;">Select all</span>
+        </label>
+        <span style="color:var(--border-color);">|</span>
+        {% endif %}
+        <span class="results-count" id="pageResultsLabel">Your notifications</span>
+    </div>
+
+    {# Right: bulk + mark-all buttons #}
+    <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-sm btn-primary" id="markSelectedBtn"
+                style="display:none;" onclick="markSelectedRead()">
+            Mark <span id="selectedCount">0</span> as Read
+        </button>
+        {% if notifications %}
+        <button class="btn btn-sm btn-secondary" onclick="markAllRead()">Mark All Read</button>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Main card ────────────────────────────────────────────────── #}
+<div class="content-card">
+    <div class="card-body">
+        {% if notifications %}
+        <div class="notification-list-page" id="notifList" style="margin:-16px;">
+            {% for n in notifications %}
+            <div class="notif-item-full {% if n.is_read == 'N' %}notif-unread{% endif %}"
+                 id="notif-row-{{ hid(n.notification_id) }}"
+                 data-notif-id="{{ hid(n.notification_id) }}"
+                 data-unread="{{ 'true' if n.is_read == 'N' else 'false' }}">
+
+                {# Checkbox #}
+                <div class="notif-cb-wrap">
+                    <input type="checkbox" class="notif-cb"
+                           value="{{ hid(n.notification_id) }}"
+                           onchange="updateBulkBar()"
+                           aria-label="Select notification">
+                </div>
+
+                {# Category icon #}
+                <div class="notif-icon-wrapper notif-icon-{{ n.category }}" style="flex-shrink:0;margin-top:1px;">
+                    {% if n.category == 'success' %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    {% elif n.category == 'danger' %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                    {% elif n.category == 'warning' %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    {% else %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    {% endif %}
+                </div>
+
+                {# Message body #}
+                <div class="notif-content" style="flex:1;min-width:0;">
+                    <strong class="notif-title-text">{{ n.title or 'Notification' }}</strong>
+                    <p class="notif-message-text">{{ n.message }}</p>
+                    <span class="notif-time">{{ n.created_at.strftime('%d %b %Y, %H:%M') if n.created_at else '' }}</span>
+                </div>
+
+                {# Per-row action buttons — stacked vertically so they don't fight for width #}
+                <div class="notif-row-actions">
+                    {% if n.link %}
+                    {# View navigates away (marks read server-side via redirect) #}
+                    <form method="POST" action="{{ url_for('notifications.mark_read', notification_id=n.notification_id) }}" style="margin:0;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-xs btn-primary" style="min-width:64px;">View</button>
+                    </form>
+                    {% endif %}
+                    {% if n.is_read == 'N' %}
+                    {# Inline AJAX mark-read — always visible for any unread notification #}
+                    <button type="button"
+                            class="btn btn-xs btn-secondary mark-read-btn"
+                            data-id="{{ hid(n.notification_id) }}"
+                            onclick="markOneRead('{{ hid(n.notification_id) }}', this)"
+                            style="min-width:64px;">
+                        Mark Read
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% from 'components/_pagination.html' import pagination_ui %}
+        {{ pagination_ui(pagination, '', per_page=per_page) }}
+
+        {% else %}
+        <div class="empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
+            <h3>No notifications</h3>
+            <p>You're all caught up!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    const CSRF = '{{ csrf_token() }}';
+
+    /* ── helpers ──────────────────────────────────────────────── */
+    const allCbs     = () => document.querySelectorAll('.notif-cb');
+    const checkedCbs = () => document.querySelectorAll('.notif-cb:checked');
+
+    function updateBulkBar() {
+        const all     = allCbs();
+        const checked = checkedCbs();
+        const n       = checked.length;
+
+        const selectAllCb  = document.getElementById('selectAllCb');
+        const markBtn      = document.getElementById('markSelectedBtn');
+        const countEl      = document.getElementById('selectedCount');
+
+        if (selectAllCb) {
+            selectAllCb.indeterminate = n > 0 && n < all.length;
+            selectAllCb.checked       = all.length > 0 && n === all.length;
+        }
+
+        if (n > 0) {
+            countEl.textContent    = n;
+            markBtn.style.display  = '';
+        } else {
+            markBtn.style.display  = 'none';
+        }
+    }
+
+    /* Exposed globally for the onchange= attribute */
+    window.toggleSelectAll = function (checked) {
+        allCbs().forEach(cb => { cb.checked = checked; });
+        updateBulkBar();
+    };
+
+    /* ── navbar badge ─────────────────────────────────────────── */
+    function refreshBadge() {
+        fetch('{{ url_for("notifications.unread_count") }}')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.querySelector('.notif-badge');
+                if (!badge) return;
+                if (data.count > 0) {
+                    badge.textContent   = data.count > 99 ? '99+' : data.count;
+                    badge.style.display = '';
+                } else {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(() => {});
+    }
+
+    /* ── core AJAX ────────────────────────────────────────────── */
+    function bulkMarkRead(ids, onSuccess) {
+        fetch('{{ url_for("notifications.mark_bulk_read") }}', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body:    JSON.stringify({ ids }),
+        })
+        .then(r => r.json())
+        .then(data => { if (data.ok) { onSuccess(data); refreshBadge(); } })
+        .catch(() => {});
+    }
+
+    /* Remove unread styling + "Mark Read" button from a row */
+    function applyReadState(row) {
+        if (!row) return;
+        row.classList.remove('notif-unread');
+        row.dataset.unread = 'false';
+        const btn = row.querySelector('.mark-read-btn');
+        if (btn) {
+            btn.classList.add('fading');
+            setTimeout(() => btn.remove(), 280);
+        }
+    }
+
+    /* Single-row mark read (the per-row "Mark Read" button) */
+    window.markOneRead = function (hid, btn) {
+        btn.disabled    = true;
+        btn.textContent = '…';
+        bulkMarkRead([hid], () => {
+            const row = document.getElementById('notif-row-' + hid);
+            applyReadState(row);
+            const cb = row && row.querySelector('.notif-cb');
+            if (cb) { cb.checked = false; }
+            updateBulkBar();
+        });
+    };
+
+    /* Bulk mark read (selected checkboxes) */
+    window.markSelectedRead = function () {
+        const ids = Array.from(checkedCbs()).map(cb => cb.value);
+        if (!ids.length) return;
+        const markBtn = document.getElementById('markSelectedBtn');
+        markBtn.disabled    = true;
+        markBtn.textContent = 'Marking…';
+
+        bulkMarkRead(ids, () => {
+            ids.forEach(hid => {
+                const row = document.getElementById('notif-row-' + hid);
+                applyReadState(row);
+                const cb = row && row.querySelector('.notif-cb');
+                if (cb) { cb.checked = false; }
+            });
+            markBtn.disabled    = false;
+            /* Restore original label with count span */
+            markBtn.innerHTML   = 'Mark <span id="selectedCount">0</span> as Read';
+            updateBulkBar();
+        });
+    };
+
+    /* Mark ALL read → simple reload */
+    window.markAllRead = function () {
+        fetch('{{ url_for("notifications.mark_all_read") }}', {
+            method: 'POST', headers: { 'X-CSRFToken': CSRF },
+        }).then(() => location.reload());
+    };
+
+    /* Init */
+    updateBulkBar();
+})();
+</script>
+{% endblock %}

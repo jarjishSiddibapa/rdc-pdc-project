@@ -1,0 +1,22 @@
+venv/
+__pycache__/
+*.pyc
+.env
+instance/
+app/static/uploads/*
+!app/static/uploads/.gitkeep
+*.db
+migrations/
+logs/
+*.log
+.DS_Store
+flask_sessions/
+
+# Local tooling and demo artefacts
+instantclient/
+.claude/
+graphify-out/
+demo.db
+server.log
+.env.*
+!.env.example

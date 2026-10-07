@@ -1,0 +1,502 @@
+{% extends "base.html" %}
+{% block title %}New Cheque — {{ app_name }}{% endblock %}
+{% block page_title %}New Cheque{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:800px;">
+    <div class="card-header">
+        <h2 class="card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            {% if replaces_cheque %}Replacement Cheque Entry{% else %}New Cheque Entry{% endif %}
+        </h2>
+    </div>
+
+    {# ── Replacement banner ──────────────────────────────────────────── #}
+    {% if replaces_cheque %}
+    <div class="alert alert-warning" style="margin:0 1.25rem 0;border-radius:.5rem;display:flex;align-items:flex-start;gap:.75rem;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:.1rem;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.49"/></svg>
+        <div>
+            <strong>Replacing cheque <a href="{{ url_for('cheques.detail', cheque_id=replaces_cheque.cheque_id) }}" class="link-primary">{{ replaces_cheque.uid }}</a></strong><br>
+            <span style="font-size:.85rem;">
+                {{ replaces_cheque.customer.customer_name if replaces_cheque.customer else '—' }}
+                &nbsp;·&nbsp; {{ replaces_cheque.cheque_number }}
+                &nbsp;·&nbsp; {{ replaces_cheque.amount_display }}
+                &nbsp;·&nbsp; <span class="status-badge" style="--badge-color:{{ replaces_cheque.status_color }};font-size:.75rem;">{{ replaces_cheque.status }}</span>
+            </span><br>
+            <span style="font-size:.8rem;color:var(--text-muted);">
+                Once you save the new cheque, the original will be automatically closed as <strong>New Cheque Received</strong>.
+            </span>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="POST" enctype="multipart/form-data" class="form-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if replaces_cheque %}
+        <input type="hidden" name="replaces_cheque_id" value="{{ replaces_cheque.cheque_id }}">
+        {% endif %}
+
+        <fieldset class="form-fieldset">
+            <legend>Location</legend>
+            <div class="form-group">
+                <label for="location_id" class="form-label">Location (City) <span class="required">*</span></label>
+                <select id="location_id" name="location_id" class="form-input ts-select" required>
+                    <option value="">— Select Location —</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.location_id }}"
+                        {{ 'selected' if (replaces_cheque and replaces_cheque.location_id == loc.location_id)
+                                      or (not replaces_cheque and current_user.user_location and current_user.user_location.location_id == loc.location_id) }}>
+                        {{ loc.location_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <span class="field-error" id="err-location" style="display:none;">Location is required.</span>
+                <small class="form-hint">Approval and processing is location-wise.</small>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-fieldset">
+            <legend>Customer Details</legend>
+            <div class="form-group">
+                <label for="customer_id" class="form-label">Search Customer <span class="required">*</span></label>
+                <!-- AJAX search — type ≥2 chars to search across 35k+ customers -->
+                <select id="customer_id" name="customer_id" class="form-input" required>
+                    {% if replaces_cheque and replaces_cheque.customer %}
+                    <option value="{{ replaces_cheque.customer.customer_id }}" selected>
+                        {{ replaces_cheque.customer.customer_code }} — {{ replaces_cheque.customer.customer_name }}
+                    </option>
+                    {% else %}
+                    <option value="">— Type name or customer code —</option>
+                    {% endif %}
+                </select>
+                <span class="field-error" id="err-customer" style="display:none;">Customer is required.</span>
+                <small class="form-hint">Type at least 2 characters to search by name or customer code.</small>
+            </div>
+            {% set _pre_cust = replaces_cheque.customer if replaces_cheque and replaces_cheque.customer else none %}
+            <div class="form-row-2" id="customerFields">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Customer Code</label>
+                    <div id="customerCode" class="form-input customer-readonly-field{% if not _pre_cust %} customer-readonly-empty{% endif %}">
+                        {{ _pre_cust.customer_code if _pre_cust else '' }}
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Customer Name</label>
+                    <div id="customerName" class="form-input customer-readonly-field{% if not _pre_cust %} customer-readonly-empty{% endif %}">
+                        {{ _pre_cust.customer_name if _pre_cust else '' }}
+                    </div>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-fieldset">
+            <legend>Cheque Details</legend>
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label for="cheque_number" class="form-label">Cheque Number <span class="required">*</span></label>
+                    <input type="text" id="cheque_number" name="cheque_number" class="form-input" required placeholder="e.g. 000123">
+                    <span class="field-error" id="err-cheque-number" style="display:none;">Cheque number is required.</span>
+                </div>
+                <div class="form-group">
+                    <label for="cheque_date" class="form-label">Cheque Date <span class="required">*</span></label>
+                    <input type="date" id="cheque_date" name="cheque_date" class="form-input" required>
+                    <span class="field-error" id="err-cheque-date" style="display:none;">Cheque date is required.</span>
+                </div>
+            </div>
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label for="bank_id" class="form-label">Bank Name <span class="required">*</span></label>
+                    <select id="bank_id" name="bank_id" class="form-input ts-select" required>
+                        <option value="">— Select Bank —</option>
+                        {% for b in banks %}
+                        <option value="{{ b.bank_id }}"
+                            {{ 'selected' if replaces_cheque and replaces_cheque.bank_id == b.bank_id }}>
+                            {{ b.bank_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <span class="field-error" id="err-bank" style="display:none;">Bank is required.</span>
+                </div>
+                <div class="form-group">
+                    <label for="amount" class="form-label">Amount (₹) <span class="required">*</span></label>
+                    <input type="number" id="amount" name="amount" class="form-input" step="0.01" min="0.01" required placeholder="0.00">
+                    <span class="field-error" id="err-amount" style="display:none;">Amount must be greater than zero.</span>
+                </div>
+            </div>
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label for="cheque_type" class="form-label">Cheque Type</label>
+                    <select id="cheque_type" name="cheque_type" class="form-input">
+                        <option value="PDC">PDC (Post-Dated)</option>
+                        <option value="Normal">Normal</option>
+                    </select>
+                </div>
+                {% if not replaces_cheque %}
+                <div class="form-group">
+                    <label for="initial_status" class="form-label">Initial Status</label>
+                    <select id="initial_status" name="initial_status" class="form-input">
+                        <option value="Collected by Sales Person" selected>Collected by Sales Person</option>
+                        <option value="Pending with Customer">Pending with Customer</option>
+                    </select>
+                    <small class="form-hint">Choose "Pending" only if the cheque hasn't been handed over yet.</small>
+                </div>
+                {% else %}
+                {# Replacement cheques are always directly collected #}
+                <input type="hidden" name="initial_status" value="Collected by Sales Person">
+                {% endif %}
+            </div>
+        </fieldset>
+
+        <fieldset class="form-fieldset">
+            <legend>Attachments & Notes</legend>
+            <div class="form-group">
+                <label for="cheque_image" class="form-label">Cheque Image <span class="required">*</span></label>
+
+                {# The input is display:none — label[for] triggers it natively, no z-index tricks #}
+                <input type="file" id="cheque_image" name="cheque_image" accept="image/*,.pdf" required style="display:none;" onchange="rdcFilePreview(this)">
+
+                {# ── Drop zone ─────────────────────────────────────────────── #}
+                <div id="fileWrapper" style="border:2px dashed var(--border-color,#cbd5e1);border-radius:.5rem;transition:border-color .15s,background .15s;">
+
+                    {# Empty / idle state — clicking this label opens the file picker #}
+                    <label for="cheque_image" id="fileEmptyState"
+                           style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;padding:2rem 1rem;cursor:pointer;width:100%;color:var(--text-muted);">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="opacity:.45;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span style="font-size:.875rem;font-weight:500;color:var(--text);">Click to upload or drag &amp; drop</span>
+                        <small style="font-size:.78rem;">PNG, JPG, PDF up to 16MB</small>
+                    </label>
+
+                    {# Preview state — shown by JS once a file is chosen #}
+                    <div id="filePreviewState" style="display:none;padding:.75rem;">
+                        <img id="previewImg" src="" alt="Cheque preview"
+                             style="display:none;width:100%;max-height:280px;object-fit:contain;border-radius:.375rem;background:#000;">
+                        <div id="previewPdf" style="display:none;align-items:center;gap:.75rem;padding:.5rem .25rem;">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5" style="flex-shrink:0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <div>
+                                <div id="previewPdfName" style="font-weight:600;font-size:.9rem;color:var(--text);"></div>
+                                <div style="font-size:.78rem;color:var(--text-muted);margin-top:.15rem;">PDF document</div>
+                            </div>
+                        </div>
+                        {# "Change file" re-opens the picker via label click #}
+                        <label for="cheque_image"
+                               style="display:inline-flex;align-items:center;gap:.3rem;margin-top:.5rem;font-size:.78rem;color:var(--accent-primary,#6366f1);cursor:pointer;font-weight:500;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            Change file
+                        </label>
+                    </div>
+                </div>
+
+                {# ── Confirmation bar — shown below the zone once a file is chosen #}
+                <div id="fileInfoBar" style="display:none;align-items:center;gap:.6rem;margin-top:.45rem;padding:.45rem .75rem;background:var(--surface-alt,#f0fdf4);border:1px solid #86efac;border-radius:.5rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" style="flex-shrink:0;"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span id="fileInfoName" style="flex:1;font-size:.84rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);"></span>
+                    <span id="fileInfoSize" style="font-size:.77rem;color:var(--text-muted);flex-shrink:0;padding-right:.4rem;"></span>
+                    <button type="button" id="fileRemoveBtn"
+                            style="background:none;border:1px solid var(--border);border-radius:.375rem;padding:.2rem .55rem;font-size:.77rem;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;gap:.3rem;flex-shrink:0;line-height:1.4;">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Remove
+                    </button>
+                </div>
+
+                <span class="field-error" id="err-cheque-image" style="display:none;">Cheque image is required.</span>
+            </div>
+            <div class="form-group">
+                <label for="remarks" class="form-label">Remarks</label>
+                <textarea id="remarks" name="remarks" class="form-input form-textarea" rows="3" placeholder="Any additional notes..."></textarea>
+            </div>
+        </fieldset>
+
+        <div class="form-actions">
+            <a href="{{ url_for('cheques.detail', cheque_id=replaces_cheque.cheque_id) if replaces_cheque else url_for('cheques.list_cheques') }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Save
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ── Global file-preview helpers (called by onchange on the input) ──────── */
+function rdcFmtBytes(b) {
+    if (b < 1024)    return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+}
+
+function rdcFilePreview(inp) {
+    var file = inp && inp.files && inp.files[0];
+    var wrapper   = document.getElementById('fileWrapper');
+    var emptyEl   = document.getElementById('fileEmptyState');
+    var previewEl = document.getElementById('filePreviewState');
+    var imgEl     = document.getElementById('previewImg');
+    var pdfEl     = document.getElementById('previewPdf');
+    var pdfName   = document.getElementById('previewPdfName');
+    var infoBar   = document.getElementById('fileInfoBar');
+    var nameEl    = document.getElementById('fileInfoName');
+    var sizeEl    = document.getElementById('fileInfoSize');
+    var errImg    = document.getElementById('err-cheque-image');
+
+    if (!file) { rdcFileClear(); return; }
+
+    /* ── Confirmation bar ── */
+    if (nameEl)  nameEl.textContent  = file.name;
+    if (sizeEl)  sizeEl.textContent  = rdcFmtBytes(file.size);
+    if (infoBar) { infoBar.style.display = 'flex'; }
+
+    /* ── Swap idle ↔ preview inside the drop zone ── */
+    if (emptyEl)   emptyEl.style.display  = 'none';
+    if (previewEl) previewEl.style.display = 'block';
+    if (wrapper)   { wrapper.classList.add('has-file'); wrapper.style.outline = ''; wrapper.style.borderColor = '#86efac'; }
+
+    /* ── Thumbnail or PDF icon ── */
+    if (file.type.startsWith('image/')) {
+        if (imgEl) {
+            if (imgEl._blobUrl) { URL.revokeObjectURL(imgEl._blobUrl); }
+            imgEl._blobUrl = URL.createObjectURL(file);
+            imgEl.src = imgEl._blobUrl;
+            imgEl.style.display = 'block';
+        }
+        if (pdfEl) pdfEl.style.display = 'none';
+    } else if (file.type === 'application/pdf') {
+        if (pdfName) pdfName.textContent = file.name;
+        if (pdfEl)  pdfEl.style.display  = 'flex';
+        if (imgEl)  imgEl.style.display   = 'none';
+    } else {
+        if (imgEl) imgEl.style.display = 'none';
+        if (pdfEl) pdfEl.style.display = 'none';
+    }
+
+    /* ── Clear validation error ── */
+    if (errImg) errImg.style.display = 'none';
+}
+
+function rdcFileClear() {
+    var wrapper   = document.getElementById('fileWrapper');
+    var emptyEl   = document.getElementById('fileEmptyState');
+    var previewEl = document.getElementById('filePreviewState');
+    var imgEl     = document.getElementById('previewImg');
+    var pdfEl     = document.getElementById('previewPdf');
+    var infoBar   = document.getElementById('fileInfoBar');
+
+    if (emptyEl)   emptyEl.style.display  = 'flex';
+    if (previewEl) previewEl.style.display = 'none';
+    if (imgEl)     { if (imgEl._blobUrl) { URL.revokeObjectURL(imgEl._blobUrl); imgEl._blobUrl = null; } imgEl.src = ''; imgEl.style.display = 'none'; }
+    if (pdfEl)     pdfEl.style.display = 'none';
+    if (infoBar)   infoBar.style.display = 'none';
+    if (wrapper)   { wrapper.classList.remove('has-file'); wrapper.style.borderColor = ''; }
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', function () {
+
+    /* ── Helper: show / clear field error ─────────────────────────── */
+    function setError(errId, tsWrapperId, show) {
+        const err = document.getElementById(errId);
+        if (err) err.style.display = show ? '' : 'none';
+        if (tsWrapperId) {
+            const wrap = document.querySelector('#' + tsWrapperId + ' + .ts-wrapper') ||
+                         document.querySelector('[data-ts-for="' + tsWrapperId + '"]') ||
+                         document.querySelector('.ts-wrapper:has(#' + tsWrapperId + '-ts-control)');
+            if (wrap) wrap.classList.toggle('is-invalid', show);
+        } else {
+            // plain input
+            const input = document.getElementById(tsWrapperId === null ? errId.replace('err-', '') : null);
+        }
+    }
+
+    /* ── TomSelect instances (kept for access in validation) ──────── */
+    let tsCustomer, tsLocation, tsBank;
+
+    // Customer
+    const customerRaw  = document.getElementById('customer_id');
+    const elCode = document.getElementById('customerCode');
+    const elName = document.getElementById('customerName');
+
+    function setCustomerFields(code, name) {
+        if (elCode) {
+            elCode.textContent = code || '';
+            elCode.classList.toggle('customer-readonly-empty', !code);
+        }
+        if (elName) {
+            elName.textContent = name || '';
+            elName.classList.toggle('customer-readonly-empty', !name);
+        }
+    }
+
+    if (customerRaw) {
+        tsCustomer = new TomSelect(customerRaw, {
+            valueField: 'value', labelField: 'text', searchField: 'text',
+            placeholder: '— Type name or customer code —',
+            allowEmptyOption: true,
+            load: function (query, callback) {
+                if (!query || query.length < 2) return callback();
+                fetch('/cheques/api/customers/search?q=' + encodeURIComponent(query))
+                    .then(r => r.json()).then(data => callback(data)).catch(() => callback());
+            },
+            preload: false,
+            onChange: function (val) {
+                const errEl = document.getElementById('err-customer');
+                if (errEl) errEl.style.display = val ? 'none' : '';
+                if (!val) {
+                    setCustomerFields('', '');
+                    return;
+                }
+                // Pull code + name directly from the option — no extra API call needed.
+                const opt = this.options[val];
+                if (opt && opt.customer_code) {
+                    setCustomerFields(opt.customer_code, opt.customer_name);
+                } else {
+                    // Fallback: parse from the combined label text "CODE — NAME"
+                    const parts = (opt && opt.text ? opt.text : '').split(' — ');
+                    setCustomerFields(parts[0] || '', parts.slice(1).join(' — ') || '');
+                }
+            }
+        });
+
+        // For replacement-cheque mode the fields are pre-populated by Jinja — nothing extra needed.
+    }
+
+    // Location
+    const locRaw = document.getElementById('location_id');
+    if (locRaw) {
+        tsLocation = new TomSelect(locRaw, {
+            allowEmptyOption: true,
+            onChange: function (val) {
+                const errEl = document.getElementById('err-location');
+                if (errEl) errEl.style.display = val ? 'none' : '';
+            }
+        });
+    }
+
+    // Bank
+    const bankRaw = document.getElementById('bank_id');
+    if (bankRaw) {
+        tsBank = new TomSelect(bankRaw, {
+            allowEmptyOption: true,
+            onChange: function (val) {
+                const errEl = document.getElementById('err-bank');
+                if (errEl) errEl.style.display = val ? 'none' : '';
+            }
+        });
+    }
+
+    /* ── Form-level validation on submit ──────────────────────────── */
+    const form = document.querySelector('form.form-body');
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            let valid = true;
+
+            function check(inputId, errId, test, msg) {
+                const errEl = document.getElementById(errId);
+                const inputEl = document.getElementById(inputId);
+                const fail = !test();
+                if (errEl) { errEl.textContent = msg; errEl.style.display = fail ? '' : 'none'; }
+                if (inputEl && !inputEl.classList.contains('ts-control')) {
+                    inputEl.classList.toggle('is-invalid', fail);
+                }
+                if (fail) valid = false;
+            }
+
+            // Customer (TomSelect — read underlying select value)
+            const custVal = document.getElementById('customer_id') ? document.getElementById('customer_id').value : '';
+            const errCust = document.getElementById('err-customer');
+            if (errCust) { errCust.style.display = custVal ? 'none' : ''; }
+            if (!custVal) valid = false;
+
+            // Location
+            const locVal = document.getElementById('location_id') ? document.getElementById('location_id').value : '';
+            const errLoc = document.getElementById('err-location');
+            if (errLoc) { errLoc.style.display = locVal ? 'none' : ''; }
+            if (!locVal) valid = false;
+
+            // Bank
+            const bankVal = document.getElementById('bank_id') ? document.getElementById('bank_id').value : '';
+            const errBank = document.getElementById('err-bank');
+            if (errBank) { errBank.style.display = bankVal ? 'none' : ''; }
+            if (!bankVal) valid = false;
+
+            // Cheque number
+            const chqNum = (document.getElementById('cheque_number') || {}).value || '';
+            const errChqNum = document.getElementById('err-cheque-number');
+            if (errChqNum) { errChqNum.style.display = chqNum.trim() ? 'none' : ''; }
+            if (!chqNum.trim()) valid = false;
+
+            // Cheque date
+            const chqDate = (document.getElementById('cheque_date') || {}).value || '';
+            const errChqDate = document.getElementById('err-cheque-date');
+            if (errChqDate) { errChqDate.style.display = chqDate ? 'none' : ''; }
+            if (!chqDate) valid = false;
+
+            // Amount
+            const amt = parseFloat((document.getElementById('amount') || {}).value);
+            const errAmt = document.getElementById('err-amount');
+            if (errAmt) { errAmt.style.display = (amt && amt > 0) ? 'none' : ''; }
+            if (!amt || amt <= 0) valid = false;
+
+            // Cheque image (mandatory)
+            var _fi = document.getElementById('cheque_image');
+            var errImg = document.getElementById('err-cheque-image');
+            var _fw = document.getElementById('fileWrapper');
+            var hasFile = _fi && _fi.files && _fi.files.length > 0;
+            if (errImg) errImg.style.display = hasFile ? 'none' : '';
+            if (_fw && !hasFile) _fw.style.outline = '2px solid var(--danger)';
+            if (!hasFile) valid = false;
+
+            if (!valid) {
+                e.preventDefault();
+                // Scroll to first visible error
+                const firstErr = form.querySelector('.field-error:not([style*="display: none"]):not([style*="display:none"])');
+                if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+    }
+
+    /* ── File upload — remove button & drag-and-drop ─────────────── */
+    (function () {
+        var wrapper   = document.getElementById('fileWrapper');
+        var removeBtn = document.getElementById('fileRemoveBtn');
+        var inp       = document.getElementById('cheque_image');
+        if (!inp || !wrapper) return;
+
+        // Remove button
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function () {
+                inp.value = '';
+                rdcFileClear();
+                var errImg = document.getElementById('err-cheque-image');
+                if (errImg) errImg.style.display = '';
+                wrapper.style.outline = '2px solid var(--danger,#ef4444)';
+            });
+        }
+
+        // Drag-and-drop
+        wrapper.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            this.style.borderColor = 'var(--accent-primary,#6366f1)';
+            this.style.background  = 'rgba(99,102,241,.06)';
+        });
+        wrapper.addEventListener('dragleave', function (e) {
+            if (!this.contains(e.relatedTarget)) {
+                this.style.borderColor = '';
+                this.style.background  = '';
+            }
+        });
+        wrapper.addEventListener('drop', function (e) {
+            e.preventDefault();
+            this.style.borderColor = '';
+            this.style.background  = '';
+            var files = e.dataTransfer && e.dataTransfer.files;
+            if (files && files.length) {
+                try { var dt = new DataTransfer(); dt.items.add(files[0]); inp.files = dt.files; } catch (_) {}
+                rdcFilePreview(inp);
+            }
+        });
+    }());
+});
+
+
+</script>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if location else 'New' }} Location — {{ app_name }}{% endblock %}
+{% block page_title %}{{ 'Edit Location' if location else 'Add Location' }}{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:540px;">
+    <form method="POST" class="form-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label class="form-label">Location Name <span class="required">*</span></label>
+            <input type="text" name="location_name" class="form-input" required
+                   value="{{ location.location_name if location else '' }}"
+                   placeholder="e.g. Thane, Mumbai, Bengaluru">
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('admin.locations') }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">{{ 'Update' if location else 'Create' }} Location</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

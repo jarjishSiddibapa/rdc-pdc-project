@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Record Deposit — {{ app_name }}{% endblock %}
+{% block page_title %}Record Deposit{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:640px;">
+    <div class="card-header">
+        <h2 class="card-title">Deposit — {{ cheque.uid }}</h2>
+        <span class="status-badge" style="--badge-color:{{ cheque.status_color }}">{{ cheque.status }}</span>
+    </div>
+
+    <div class="card-body">
+        <div class="detail-grid detail-grid-compact">
+            <div class="detail-item"><span class="detail-label">Customer</span><span class="detail-value">{{ cheque.customer.customer_name }}</span></div>
+            <div class="detail-item"><span class="detail-label">Amount</span><span class="detail-value detail-amount">{{ cheque.amount_display }}</span></div>
+            <div class="detail-item"><span class="detail-label">Cheque #</span><span class="detail-value font-mono">{{ cheque.cheque_number }}</span></div>
+            <div class="detail-item"><span class="detail-label">Cheque Bank</span><span class="detail-value">{{ cheque.bank.display_name if cheque.bank else cheque.bank_name or '—' }}</span></div>
+        </div>
+    </div>
+
+    <form method="POST" class="form-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-row-2">
+            <div class="form-group">
+                <label for="deposit_date" class="form-label">Deposit Date <span class="required">*</span></label>
+                <input type="date" id="deposit_date" name="deposit_date" class="form-input" required value="{{ today }}">
+            </div>
+            <div class="form-group">
+                <label for="deposit_bank" class="form-label">Deposited Into Bank <span class="required">*</span></label>
+                <select id="deposit_bank" name="deposit_bank" class="form-input ts-select" required>
+                    <option value="">— Select Bank —</option>
+                    {% for b in banks %}
+                    <option value="{{ b.bank_name }}">{{ b.bank_name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-hint">The bank account this cheque was deposited into.</small>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('cheques.detail', cheque_id=cheque.cheque_id) }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Deposit
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

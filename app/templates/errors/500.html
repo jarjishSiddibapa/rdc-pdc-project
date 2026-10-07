@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}500 Internal Server Error — {{ app_name }}{% endblock %}
+
+{% block auth_content %}
+<div class="error-page">
+    <div style="font-size:4rem;margin-bottom:.5rem;">💥</div>
+    <h1>500</h1>
+    <h2 style="font-size:1.1rem;font-weight:600;color:var(--text-primary);margin:0 0 .5rem;">Internal Server Error</h2>
+    <p style="max-width:420px;">
+        Something went wrong on our end. This is not your fault — the server
+        encountered an unexpected condition and could not complete your request.
+    </p>
+    {% if error_ref %}
+    <p style="font-size:.78rem;color:var(--text-muted);margin:-.25rem 0 .75rem;">
+        Reference: <code style="font-size:.78rem;background:var(--surface-alt,rgba(0,0,0,.1));padding:.15rem .4rem;border-radius:.3rem;">{{ error_ref }}</code>
+    </p>
+    {% endif %}
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;">
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">Go to Dashboard</a>
+        <a href="javascript:history.back()" class="btn btn-secondary">Go Back</a>
+    </div>
+    <p style="margin-top:2rem;font-size:.78rem;color:var(--text-muted);">
+        If this keeps happening, please contact your system administrator and
+        share the reference code above.
+    </p>
+</div>
+{% endblock %}

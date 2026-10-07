@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Audit Logs — {{ app_name }}{% endblock %}
+{% block page_title %}Audit Logs{% endblock %}
+
+{% block content %}
+<div class="content-card filter-card">
+    <form method="GET" class="filter-form">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label class="filter-label">Action</label>
+                <select name="action" class="form-input form-input-sm">
+                    <option value="">All Actions</option>
+                    {% for a in actions %}
+                    <option value="{{ a }}" {{ 'selected' if filters.get('action') == a }}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Table</label>
+                <select name="table_name" class="form-input form-input-sm">
+                    <option value="">All Tables</option>
+                    {% for t in tables %}
+                    <option value="{{ t }}" {{ 'selected' if filters.get('table_name') == t }}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">User</label>
+                <select name="user_id" class="form-input form-input-sm">
+                    <option value="">All Users</option>
+                    {% for u in users %}
+                    <option value="{{ u.user_id }}" {{ 'selected' if filters.get('user_id') == u.user_id|string }}>{{ u.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">From</label>
+                <input type="date" name="date_from" class="form-input form-input-sm" value="{{ filters.get('date_from', '') }}">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">To</label>
+                <input type="date" name="date_to" class="form-input form-input-sm" value="{{ filters.get('date_to', '') }}">
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-sm btn-secondary">Clear</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="content-card">
+    <div class="card-body table-responsive">
+        {% if logs %}
+        <table class="data-table data-table-compact">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Table</th>
+                    <th>Description</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td class="text-nowrap">{{ log.created_at.strftime('%d %b %Y, %H:%M:%S') if log.created_at else '—' }}</td>
+                    <td>{{ log.user.full_name if log.user else 'System' }}</td>
+                    <td><span class="tag" style="background:{{ log.action_color }}20; color:{{ log.action_color }}; border:1px solid {{ log.action_color }}40;">{{ log.action }}</span></td>
+                    <td class="font-mono">{{ log.table_name }}</td>
+                    <td>{{ log.description or '—' }}</td>
+                    <td class="font-mono text-muted">{{ log.ip_address or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% from 'components/_pagination.html' import pagination_ui %}
+        {{ pagination_ui(pagination, filter_qs, per_page=per_page, per_page_choices=[10,20,30,50,100]) }}
+        {% else %}
+        <div class="empty-state"><h3>No audit logs found</h3></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

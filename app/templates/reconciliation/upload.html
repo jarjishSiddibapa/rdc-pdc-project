@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Upload Bank Statement — {{ app_name }}{% endblock %}
+{% block page_title %}Upload Bank Statement{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:560px;">
+    <div class="card-header">
+        <h2 class="card-title">Upload Bank Statement — {{ cheque.uid }}</h2>
+        <span class="status-badge" style="--badge-color:{{ cheque.status_color }}">{{ cheque.status }}</span>
+    </div>
+
+    <div class="card-body">
+        <div class="detail-grid detail-grid-compact">
+            <div class="detail-item"><span class="detail-label">Customer</span><span class="detail-value">{{ cheque.customer.customer_name }}</span></div>
+            <div class="detail-item"><span class="detail-label">Amount</span><span class="detail-value detail-amount">{{ cheque.amount_display }}</span></div>
+            <div class="detail-item"><span class="detail-label">Cheque #</span><span class="detail-value font-mono">{{ cheque.cheque_number }}</span></div>
+            <div class="detail-item"><span class="detail-label">Cheque Date</span><span class="detail-value">{{ cheque.cheque_date.strftime('%d %b %Y') if cheque.cheque_date else '—' }}</span></div>
+        </div>
+
+        <div class="alert alert-info" style="margin-top:1rem;font-size:.875rem;">
+            <strong>Step 1 of 2</strong> — Upload the bank reconciliation statement. After uploading, you can mark the cheque as Cleared or Bounced.
+        </div>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" class="form-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label for="bank_statement" class="form-label">Bank Statement / Reconciliation File <span class="required">*</span></label>
+            <div class="file-upload-wrapper" id="fileWrapper">
+                <input type="file" id="bank_statement" name="bank_statement" class="file-input"
+                       accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg" required>
+                <div class="file-upload-label" id="fileLabel">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Click to upload or drag & drop</span>
+                    <small>PDF, Excel, CSV, or image — Max 10 MB</small>
+                </div>
+            </div>
+            <div id="fileChip" class="file-selected-chip" style="display:none;">
+                <img id="fileChipThumb" class="file-chip-thumb" src="" alt="" style="display:none;">
+                <span id="fileChipIcon" class="file-chip-icon">📄</span>
+                <div class="file-chip-info">
+                    <span class="file-chip-name" id="fileChipName"></span>
+                    <span class="file-chip-meta" id="fileChipMeta"></span>
+                </div>
+                <button type="button" class="file-chip-clear" id="fileChipClear" title="Remove file">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="remarks" class="form-label">Remarks</label>
+            <textarea id="remarks" name="remarks" class="form-input form-textarea" rows="2"
+                      placeholder="Any notes about this upload..."></textarea>
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('cheques.detail', cheque_id=cheque.cheque_id) }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload Bank Statement
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function _fmtBytes(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
+document.addEventListener('DOMContentLoaded',function(){
+    const input=document.getElementById('bank_statement');
+    const wrapper=document.getElementById('fileWrapper');
+    const label=document.getElementById('fileLabel');
+    if(!input)return;
+    input.addEventListener('change',function(){
+        const chip=document.getElementById('fileChip');
+        const nameEl=document.getElementById('fileChipName');
+        const metaEl=document.getElementById('fileChipMeta');
+        const iconEl=document.getElementById('fileChipIcon');
+        const thumbEl=document.getElementById('fileChipThumb');
+        if(!this.files||!this.files[0]){if(chip)chip.style.display='none';return;}
+        const file=this.files[0];
+        if(nameEl)nameEl.textContent=file.name;
+        if(metaEl)metaEl.textContent=_fmtBytes(file.size);
+        const isImage=file.type.startsWith('image/');
+        const isPdf=file.type==='application/pdf';
+        const isExcel=/spreadsheet|excel/.test(file.type)||/\.xlsx?$/.test(file.name);
+        const isCsv=/\.csv$/.test(file.name);
+        if(iconEl){iconEl.textContent=isPdf?'📄':isExcel?'📊':isCsv?'📋':isImage?'🖼️':'📎';iconEl.style.display=isImage&&thumbEl?'none':'';}
+        if(thumbEl)thumbEl.style.display='none';
+        if(isImage&&thumbEl){const r=new FileReader();r.onload=e=>{thumbEl.src=e.target.result;thumbEl.style.display='';if(iconEl)iconEl.style.display='none';};r.readAsDataURL(file);}
+        if(chip)chip.style.display='flex';
+        if(wrapper)wrapper.classList.add('has-file');
+        if(label){const s=label.querySelector('span');if(s)s.textContent=file.name;}
+    });
+    const clearBtn=document.getElementById('fileChipClear');
+    if(clearBtn){clearBtn.addEventListener('click',function(){
+        input.value='';
+        const chip=document.getElementById('fileChip');if(chip)chip.style.display='none';
+        if(wrapper)wrapper.classList.remove('has-file');
+        if(label){const s=label.querySelector('span');if(s)s.textContent='Click to upload or drag & drop';}
+    });}
+});
+</script>
+{% endblock %}

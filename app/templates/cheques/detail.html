@@ -1,0 +1,975 @@
+{% extends "base.html" %}
+{% block title %}{{ cheque.uid }} — {{ app_name }}{% endblock %}
+{% block page_title %}Cheque Details{% endblock %}
+
+{% block content %}
+<div class="detail-layout">
+    <!-- Main Info -->
+    <div class="detail-main">
+        <div class="content-card">
+            <div class="card-header">
+                <div class="detail-title-row">
+                    <h2 class="card-title font-mono">{{ cheque.uid }}</h2>
+                    <span class="status-badge status-badge-lg" style="--badge-color:{{ cheque.status_color }}">{{ cheque.status }}</span>
+                </div>
+                {% if cheque.uploaded_file %}
+                <button type="button" class="btn btn-sm btn-secondary" id="shareImageBtn"
+                        data-share-url="{{ url_for('cheques.generate_share_token', cheque_id=cheque.cheque_id) }}"
+                        style="display:inline-flex;align-items:center;gap:6px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                    Share Image
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <span class="detail-label">Customer</span>
+                        <span class="detail-value">{{ cheque.customer.customer_name if cheque.customer else '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Customer Code</span>
+                        <span class="detail-value font-mono">{{ cheque.customer.customer_code if cheque.customer else '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Cheque Number</span>
+                        <span class="detail-value font-mono">{{ cheque.cheque_number }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Cheque Date</span>
+                        <span class="detail-value">{{ cheque.cheque_date.strftime('%d %b %Y') if cheque.cheque_date else '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Bank Name</span>
+                        <span class="detail-value">{{ cheque.bank.display_name if cheque.bank else cheque.bank_name or '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Amount</span>
+                        <span class="detail-value detail-amount">{{ cheque.amount_display }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Cheque Type</span>
+                        <span class="detail-value"><span class="tag tag-{{ 'purple' if cheque.cheque_type == 'PDC' else 'blue' }}">{{ cheque.cheque_type }}</span></span>
+                    </div>
+                    {% set _terminal = ['Cleared', 'Cleared via NEFT', 'Legal Notice Initiated',
+                                        'New Cheque Received', 'Order Cancelled', 'Resolved'] %}
+                    {% if cheque.status not in _terminal %}
+                    <div class="detail-item">
+                        <span class="detail-label">Lying With</span>
+                        <span class="detail-value">{{ cheque.lying_with }}</span>
+                    </div>
+                    {% endif %}
+                    {% if cheque.reconciliation %}
+                    <div class="detail-item">
+                        <span class="detail-label">ERP Receipt Number</span>
+                        <span class="detail-value font-mono">{{ cheque.reconciliation.receipt_number or '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Cleared Date</span>
+                        <span class="detail-value">{{ cheque.reconciliation.cleared_date.strftime('%d %b %Y') if cheque.reconciliation.cleared_date else '—' }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="detail-item">
+                        <span class="detail-label">Received Date</span>
+                        <span class="detail-value">{{ cheque.received_date.strftime('%d %b %Y') if cheque.received_date else '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Sales Person</span>
+                        <span class="detail-value">{{ cheque.salesperson.full_name if cheque.salesperson else '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Location</span>
+                        <span class="detail-value">{{ cheque.location.display_name if cheque.location else '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Created By</span>
+                        <span class="detail-value">{{ cheque.creator.full_name if cheque.creator else '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Created At</span>
+                        <span class="detail-value">{{ cheque.created_at.strftime('%d %b %Y, %H:%M') if cheque.created_at else '—' }}</span>
+                    </div>
+                </div>
+
+                {% if cheque.remarks %}
+                <div class="detail-remarks">
+                    <span class="detail-label">Remarks</span>
+                    <p>{{ cheque.remarks }}</p>
+                </div>
+                {% endif %}
+
+                {% if cheque.uploaded_file %}
+                <div class="detail-attachment">
+                    <span class="detail-label">Cheque Image</span>
+                    <div class="attachment-preview">
+                        {% set file_ext = cheque.uploaded_file.rsplit('.', 1)[-1].lower() %}
+                        {% if file_ext == 'pdf' %}
+                        <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem;background:var(--surface-alt,#f8fafc);border-radius:.5rem;border:1px solid var(--border);">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><text x="6" y="18" font-size="5" fill="#ef4444" stroke="none">PDF</text></svg>
+                            <div>
+                                <div style="font-weight:600;font-size:.875rem;">{{ cheque.uploaded_file }}</div>
+                                <a href="{{ url_for('cheques.serve_upload', filename=cheque.uploaded_file) }}" target="_blank" class="btn btn-xs btn-secondary" style="margin-top:.35rem;">
+                                    Open PDF
+                                </a>
+                            </div>
+                        </div>
+                        <embed src="{{ url_for('cheques.serve_upload', filename=cheque.uploaded_file) }}" type="application/pdf" width="100%" height="420px" style="margin-top:.5rem;border-radius:.5rem;border:1px solid var(--border);">
+                        {% else %}
+                        <img src="{{ url_for('cheques.serve_upload', filename=cheque.uploaded_file) }}" alt="Cheque Image" class="cheque-image" onclick="openLightbox(this.src)">
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Cheque Journey -->
+        {% set total_done = history|length %}
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Cheque Journey
+                </h2>
+                <span class="tag tag-gray" style="font-size:11px;">{{ total_done }} step{{ 's' if total_done != 1 }}</span>
+            </div>
+            <div class="card-body" style="padding-top:.5rem;">
+                {% if history %}
+                <div class="journey">
+                {% set ns = namespace(step=0, dep_idx=0, res_idx=0) %}
+
+                    {% for h in history %}
+                    {% set ns.step = ns.step + 1 %}
+                    {# ── Completed step ── #}
+                    <div class="journey-step journey-step-done">
+
+                        {# Left: step number + connector line #}
+                        <div class="journey-spine">
+                            <div class="journey-num" style="background:{{ cheque.STATUS_COLORS.get(h.new_status, '#6b7280') }};">{{ ns.step }}</div>
+                            {# Show connector unless this is the last step AND no pending steps #}
+                            {% if not loop.last or next_steps %}
+                            <div class="journey-line"></div>
+                            {% endif %}
+                        </div>
+
+                        {# Right: content #}
+                        <div class="journey-body">
+                            <div class="journey-status-row">
+                                <span class="journey-badge" style="--jbadge:{{ cheque.STATUS_COLORS.get(h.new_status, '#6b7280') }};">
+                                    {{ h.new_status }}
+                                </span>
+                                <span class="journey-ts">{{ h.updated_at.strftime('%d %b %Y, %H:%M') if h.updated_at else '' }}</span>
+                            </div>
+
+                            {% if h.old_status %}
+                            <div class="journey-transition">
+                                <span class="journey-from">{{ h.old_status }}</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                <span class="journey-to">{{ h.new_status }}</span>
+                            </div>
+                            {% else %}
+                            <div class="journey-transition">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                                <span class="journey-to">Cheque Created</span>
+                            </div>
+                            {% endif %}
+
+                            <div class="journey-actor">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                {{ h.updater.full_name if h.updater else 'System' }}
+                                {% if h.new_lying_with %}
+                                <span class="journey-lying">· Lying with: <strong>{{ h.new_lying_with }}</strong></span>
+                                {% endif %}
+                            </div>
+
+                            {% if h.remarks %}
+                            <div class="journey-remark">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                {{ h.remarks }}
+                            </div>
+                            {% endif %}
+
+                            {# ── Documents attached to this step ── #}
+                            {# Creation step: cheque image #}
+                            {% if not h.old_status and cheque.uploaded_file %}
+                            <div class="journey-doc">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                <a href="{{ url_for('cheques.serve_upload', filename=cheque.uploaded_file) }}" target="_blank" class="journey-doc-link">
+                                    Cheque Image
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                </a>
+                            </div>
+                            {% endif %}
+
+                            {# Cleared step: receipt number #}
+                            {% if h.new_status == 'Cleared' and cheque.reconciliation and cheque.reconciliation.receipt_number %}
+                            <div class="journey-doc">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                ERP Receipt: <strong class="font-mono">{{ cheque.reconciliation.receipt_number }}</strong>
+                                {% if cheque.reconciliation.cleared_date %}
+                                <span style="color:var(--text-muted);">· {{ cheque.reconciliation.cleared_date.strftime('%d %b %Y') }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            {# Deposited step: show matching deposit record (bank + date) #}
+                            {% if h.new_status == 'Deposited' and ns.dep_idx < deposits|length %}
+                            {% set dep = deposits[ns.dep_idx] %}
+                            <div class="journey-doc">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Deposited {{ dep.deposit_date.strftime('%d %b %Y') if dep.deposit_date else '' }}
+                                {% if dep.deposit_bank %}· into <strong>{{ dep.deposit_bank }}</strong>{% endif %}
+                                · by {{ dep.creator.full_name if dep.creator else '—' }}
+                            </div>
+                            {% set ns.dep_idx = ns.dep_idx + 1 %}
+                            {% endif %}
+
+                            {# Resolution steps: show matching resolution record #}
+                            {% if h.new_status in ('Legal Notice Initiated', 'Cleared via NEFT', 'Redeposited') and ns.res_idx < resolutions|length %}
+                            {% set res = resolutions[ns.res_idx] %}
+                            {% if res.remarks %}
+                            <div class="journey-doc">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                {{ res.remarks }}
+                            </div>
+                            {% endif %}
+                            {% if res.neft_reference %}
+                            <div class="journey-doc">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                NEFT Ref: <strong class="font-mono">{{ res.neft_reference }}</strong>
+                            </div>
+                            {% endif %}
+                            {% if res.uploaded_file %}
+                            <div class="journey-doc">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                <a href="{{ url_for('cheques.serve_upload', filename=res.uploaded_file) }}" target="_blank" class="journey-doc-link">
+                                    Supporting Document
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                </a>
+                            </div>
+                            {% endif %}
+                            {% set ns.res_idx = ns.res_idx + 1 %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% endfor %}
+
+                    {# ── Pending next steps ── #}
+                    {% if next_steps %}
+                    {% for step in next_steps %}
+                    {% set ns.step = ns.step + 1 %}
+                    <div class="journey-step journey-step-pending">
+                        <div class="journey-spine">
+                            <div class="journey-num journey-num-pending">{{ ns.step }}</div>
+                            {% if not loop.last %}<div class="journey-line journey-line-dashed"></div>{% endif %}
+                        </div>
+                        <div class="journey-body journey-body-pending">
+                            <div class="journey-status-row">
+                                <span class="journey-badge journey-badge-pending">{{ step.status }}</span>
+                                <span class="timeline-pending-badge">Pending</span>
+                            </div>
+                            <div class="journey-transition" style="color:var(--text-muted);">
+                                <span class="journey-from">{{ cheque.status }}</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                <span>{{ step.status }}</span>
+                            </div>
+                            <div class="journey-actor" style="color:var(--text-muted);">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                Awaiting: <strong>{{ step.responsible }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+
+                </div>
+                {% else %}
+                <p class="text-muted" style="padding:.5rem 0;">No journey history available.</p>
+                {% endif %}
+            </div>
+        </div>
+        {# ── Deposit Records ──────────────────────────────────────────── #}
+        {% if deposits %}
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Deposit Records
+                </h2>
+                <span class="tag tag-gray" style="font-size:11px;">{{ deposits|length }} deposit{{ 's' if deposits|length != 1 }}</span>
+            </div>
+            <div class="card-body table-responsive" style="padding:0;">
+                <table class="data-table" style="margin:0;min-width:520px;">
+                    <thead>
+                        <tr>
+                            <th style="width:32px;">#</th>
+                            <th>Deposit Date</th>
+                            <th>Deposited Into Bank</th>
+                            <th>Recorded By</th>
+                            <th>Recorded At</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dep in deposits %}
+                        <tr>
+                            <td style="color:var(--text-muted);font-size:.8rem;">{{ loop.index }}</td>
+                            <td><strong>{{ dep.deposit_date.strftime('%d %b %Y') if dep.deposit_date else '—' }}</strong></td>
+                            <td>
+                                {% if dep.deposit_bank %}
+                                <span style="display:inline-flex;align-items:center;gap:.4rem;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent-primary);flex-shrink:0;"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                    {{ dep.deposit_bank }}
+                                </span>
+                                {% else %}
+                                <span style="color:var(--text-muted);">—</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ dep.creator.full_name if dep.creator else '—' }}</td>
+                            <td style="color:var(--text-muted);font-size:.82rem;">{{ dep.created_at.strftime('%d %b %Y, %H:%M') if dep.created_at else '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ── Resolution Records ───────────────────────────────────────── #}
+        {% if resolutions %}
+        {% set res_color_map = {'LEGAL': '#ef4444', 'NEFT': '#10b981', 'REDEPLOY': '#f59e0b'} %}
+        {% set res_icon_map = {'LEGAL': '⚖️', 'NEFT': '💸', 'REDEPLOY': '🔁'} %}
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    Resolution Records
+                </h2>
+                <span class="tag tag-gray" style="font-size:11px;">{{ resolutions|length }} record{{ 's' if resolutions|length != 1 }}</span>
+            </div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;padding-top:.75rem;">
+                {% for res in resolutions %}
+                {% set rc = res_color_map.get(res.resolution_type, '#6b7280') %}
+                <div style="border:1px solid var(--border);border-radius:.5rem;overflow:hidden;">
+                    <div style="display:flex;align-items:center;gap:.6rem;padding:.6rem .9rem;background:var(--surface-alt,#f8fafc);border-bottom:1px solid var(--border);">
+                        <span style="font-size:1rem;">{{ res_icon_map.get(res.resolution_type, '📋') }}</span>
+                        <span style="font-weight:700;font-size:.875rem;color:{{ rc }};">{{ res.resolution_type_display }}</span>
+                        <span style="font-size:.75rem;color:var(--text-muted);margin-left:auto;">
+                            {{ res.creator.full_name if res.creator else '—' }}
+                            · {{ res.created_at.strftime('%d %b %Y, %H:%M') if res.created_at else '' }}
+                        </span>
+                    </div>
+                    <div style="padding:.65rem .9rem;display:flex;flex-direction:column;gap:.4rem;">
+                        {% if res.remarks %}
+                        <div style="font-size:.875rem;color:var(--text);">{{ res.remarks }}</div>
+                        {% endif %}
+                        {% if res.neft_reference %}
+                        <div style="font-size:.82rem;color:var(--text-muted);">
+                            <strong>NEFT Reference:</strong> <span class="font-mono">{{ res.neft_reference }}</span>
+                        </div>
+                        {% endif %}
+                        {% if res.uploaded_file %}
+                        <div style="margin-top:.25rem;">
+                            <a href="{{ url_for('cheques.serve_upload', filename=res.uploaded_file) }}" target="_blank"
+                               style="display:inline-flex;align-items:center;gap:.4rem;font-size:.82rem;color:var(--accent-primary);text-decoration:none;font-weight:500;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                📎 Supporting Document
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- Sidebar Actions -->
+    <div class="detail-sidebar">
+
+        <!-- Last Comment Card -->
+        {% set last_h = history[-1] if history else none %}
+        {% if last_h and last_h.remarks %}
+        <div class="content-card" style="border-left:3px solid var(--accent-primary);">
+            <div class="card-body" style="padding:.75rem 1rem;">
+                <div style="font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.35rem;">
+                    Last Comment
+                </div>
+                <p style="margin:0;font-size:.875rem;color:var(--text);line-height:1.5;font-style:italic;">"{{ last_h.remarks }}"</p>
+                <div style="margin-top:.4rem;font-size:.75rem;color:var(--text-muted);">
+                    — {{ last_h.updater.full_name if last_h.updater else 'System' }},
+                    {{ last_h.updated_at.strftime('%d %b %Y, %H:%M') if last_h.updated_at else '' }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Actions Card -->
+        <div class="content-card">
+            <div class="card-header"><h3 class="card-title">Actions</h3></div>
+            <div class="card-body">
+                <div class="action-stack">
+
+                    {# ══════════════════════════════════════════════════════════
+                       ACCEPTED STATE — two distinct actor sections
+                       ══════════════════════════════════════════════════════════ #}
+                    {% if cheque.status in ('Accepted', 'Redeposited') %}
+
+                        {# ── Section A: Accounts / HO_Accounts ─ #}
+                        {% if current_user.role in ('Accounts', 'HO_Accounts') %}
+                        <div class="action-section">
+                            <div class="action-section-label">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                Accounts Actions
+                            </div>
+
+                            {# Record Deposit #}
+                            <a href="{{ url_for('deposits.create', cheque_id=cheque.cheque_id) }}" class="btn btn-full btn-primary">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Deposit
+                            </a>
+
+                            {# Reject Cheque #}
+                            <form method="POST" action="{{ url_for('cheques.change_status', cheque_id=cheque.cheque_id) }}" class="transition-form" style="margin-top:.5rem;" onsubmit="return requireRemarks(this,'Reason for rejection is required.')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="new_status" value="Rejected">
+                                <div class="form-group">
+                                    <textarea name="remarks" class="form-input form-textarea" rows="2" placeholder="Reason for rejection (required)..." required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-full btn-danger">
+                                    Reject Cheque
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+
+                        {# ── Section B: Sales — Customer requests not to submit (Accepted only) ── #}
+                        {% if current_user.role == 'Sales' and cheque.status == 'Accepted' %}
+                        <div class="action-section action-section-sales">
+                            <div class="action-section-label">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                Customer Requests Not to Submit
+                            </div>
+
+                            {# Option 1: New Cheque Received — redirect to create form linked to this cheque #}
+                            <div>
+                                <label class="action-sub-label">New Cheque Received</label>
+                                <p style="font-size:.8rem;color:var(--text-muted);margin:.3rem 0 .6rem;line-height:1.5;">
+                                    Customer is replacing this cheque. Enter the new cheque details on the next screen — this cheque will close automatically once the new one is saved.
+                                </p>
+                                <a href="{{ url_for('cheques.create', replaces=hid(cheque.cheque_id)) }}" class="btn btn-full btn-warning">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.49"/></svg>
+                                    Enter Replacement Cheque →
+                                </a>
+                            </div>
+
+                            <div style="height:.6rem;"></div>
+
+                            {# Option 2: NEFT Received — CC will confirm #}
+                            <form method="POST" action="{{ url_for('cheques.change_status', cheque_id=cheque.cheque_id) }}" class="transition-form" onsubmit="return requireRemarks(this,'NEFT reference / transaction details are required.')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="new_status" value="NEFT Received">
+                                <div class="form-group">
+                                    <label class="action-sub-label">NEFT Received</label>
+                                    <textarea name="remarks" class="form-input form-textarea" rows="2" placeholder="NEFT reference / transaction details (required)..." required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-full btn-primary">
+                                    NEFT Received
+                                </button>
+                            </form>
+
+                            <div style="height:.6rem;"></div>
+
+                            {# Option 3: Order Cancelled #}
+                            <form method="POST" action="{{ url_for('cheques.change_status', cheque_id=cheque.cheque_id) }}" class="transition-form" onsubmit="return requireRemarks(this,'Reason for cancellation is required.')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="new_status" value="Order Cancelled">
+                                <div class="form-group">
+                                    <label class="action-sub-label">Order Cancelled</label>
+                                    <textarea name="remarks" class="form-input form-textarea" rows="2" placeholder="Reason for cancellation (required)..." required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-full btn-danger">
+                                    Order Cancelled
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+
+                    {# ══════════════════════════════════════════════════════════
+                       NEFT RECEIVED STATE — Accounts / HO_Accounts confirms
+                       ══════════════════════════════════════════════════════════ #}
+                    {% elif cheque.status == 'NEFT Received' %}
+                        {% if current_user.role in ('Accounts', 'HO_Accounts') %}
+                        <div class="action-section">
+                            <div class="action-section-label">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                Accounts — Confirm NEFT
+                            </div>
+                            <form method="POST" action="{{ url_for('cheques.change_status', cheque_id=cheque.cheque_id) }}" class="transition-form" onsubmit="return requireRemarks(this,'NEFT reference number is required to confirm.')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="new_status" value="Cleared via NEFT">
+                                <div class="form-group">
+                                    <textarea name="remarks" class="form-input form-textarea" rows="2" placeholder="NEFT reference number (required)..." required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-full btn-success">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                    Confirm — Cleared via NEFT
+                                </button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <p class="text-muted" style="font-size:.85rem;text-align:center;padding:.5rem 0;">
+                            Awaiting Accounts to confirm NEFT received.
+                        </p>
+                        {% endif %}
+
+                    {# ══════════════════════════════════════════════════════════
+                       BOUNCED STATE — handled via Select Resolution
+                       ══════════════════════════════════════════════════════════ #}
+                    {% elif cheque.status == 'Bounced' %}
+                        {# No generic loop — resolution handled by dedicated button below #}
+
+                    {% elif cheque.status == 'Deposited' %}
+                        {# No generic loop — two-step reconciliation handled by dedicated buttons below #}
+
+                    {# ══════════════════════════════════════════════════════════
+                       ALL OTHER STATES — generic transition loop
+                       ══════════════════════════════════════════════════════════ #}
+                    {% else %}
+                        {% for transition in available_transitions %}
+                        {%- set remarks_required = transition in ('Rejected', 'Bounced', 'Order Cancelled', 'Legal Notice Initiated') -%}
+                        <form method="POST" action="{{ url_for('cheques.change_status', cheque_id=cheque.cheque_id) }}" class="transition-form"
+                              {% if remarks_required %}onsubmit="return requireRemarks(this,'Remarks are required for {{ transition }}.')"{% endif %}>
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="new_status" value="{{ transition }}">
+                            <div class="form-group">
+                                <textarea name="remarks" class="form-input form-textarea" rows="2"
+                                    {% if remarks_required %}required{% endif %}
+                                    placeholder="{% if transition == 'Cleared via NEFT' %}NEFT reference number (required)...{% elif remarks_required %}Remarks (required) for {{ transition }}...{% else %}Remarks for {{ transition }}...{% endif %}"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-full
+                                {%- if transition in ('Bounced', 'Rejected') %} btn-danger
+                                {%- elif transition in ('Cleared', 'Accepted', 'Cleared via NEFT') %} btn-success
+                                {%- else %} btn-primary{%- endif %}">
+                                {{ transition }}
+                            </button>
+                        </form>
+                        {% endfor %}
+                    {% endif %}
+
+                    {# ══ SPECIAL DEDICATED ACTION BUTTONS ══════════════════════ #}
+
+                    <!-- Reconciliation — Accounts / HO Accounts mark Cleared or Bounced directly -->
+                    {% if cheque.status == 'Deposited' and current_user.role in ('Accounts', 'HO_Accounts') %}
+                    <div class="action-section">
+                        <div class="action-section-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                            Is Cheque Cleared?
+                        </div>
+
+                        <form method="POST" action="{{ url_for('reconciliation.mark_cleared', cheque_id=cheque.cheque_id) }}" class="transition-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <label class="action-sub-label">✅ Yes — Cleared</label>
+                            <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.4rem;">
+                                <input type="date" name="cleared_date" class="form-input" required title="Clearance date">
+                                <input type="text" name="receipt_number" class="form-input"
+                                       placeholder="ERP Receipt Number" required title="ERP Receipt Number">
+                            </div>
+                            <button type="submit" class="btn btn-full btn-success"
+                                    onclick="return confirm('Mark this cheque as Cleared?')">
+                                Cleared
+                            </button>
+                        </form>
+
+                        <div style="height:.75rem;"></div>
+
+                        <form method="POST" action="{{ url_for('reconciliation.mark_bounced', cheque_id=cheque.cheque_id) }}" class="transition-form" onsubmit="return requireRemarks(this,'Bounce reason is required.')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <label class="action-sub-label">❌ No — Bounced</label>
+                            <textarea name="remarks" class="form-input form-textarea" rows="2"
+                                      placeholder="Bounce reason (required)..." required></textarea>
+                            <button type="submit" class="btn btn-full btn-danger">
+                                Bounced
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                    <!-- Select Resolution (Bounced → Accounts / HO Accounts) -->
+                    {% if cheque.status == 'Bounced' and current_user.role in ('Accounts', 'HO_Accounts') %}
+                    <a href="{{ url_for('resolution.create', cheque_id=cheque.cheque_id) }}" class="btn btn-full btn-warning">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        Select Resolution
+                    </a>
+                    {% endif %}
+
+                    <div class="action-divider"></div>
+
+                    <!-- Edit Cheque -->
+                    {% set terminal_statuses = ['Cleared', 'Legal Notice Initiated', 'Cleared via NEFT',
+                                                'New Cheque Received', 'Order Cancelled', 'Resolved'] %}
+                    {% if current_user.role in ('Sales', 'Accounts', 'HO_Accounts') and cheque.status not in terminal_statuses %}
+                    <a href="{{ url_for('cheques.edit', cheque_id=cheque.cheque_id) }}" class="btn btn-full btn-secondary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        Edit Cheque
+                    </a>
+                    {% endif %}
+
+                    <!-- Deactivate (Admin only) -->
+                    {% if current_user.role == 'Admin' %}
+                    <form method="POST" action="{{ url_for('cheques.delete', cheque_id=cheque.cheque_id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-full btn-danger btn-outline" onclick="return confirm('Are you sure you want to deactivate this cheque?')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Deactivate
+                        </button>
+                    </form>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <div class="card-body" style="text-align:center;">
+                <a href="{{ request.referrer if request.referrer and '/cheques' in request.referrer else url_for('cheques.list_cheques') }}" class="btn btn-secondary btn-full">← Back to List</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Lightbox ── -->
+<div id="lightbox" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.92);flex-direction:column;align-items:center;justify-content:center;">
+    <!-- toolbar -->
+    <div id="lbToolbar" style="position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:10px 14px;background:linear-gradient(rgba(0,0,0,.7),transparent);z-index:1;">
+        <button onclick="lbZoom(1.25)" title="Zoom in"  style="background:rgba(255,255,255,.12);border:none;border-radius:6px;color:#fff;cursor:pointer;padding:6px 10px;font-size:18px;line-height:1;">＋</button>
+        <button onclick="lbZoom(.8)"   title="Zoom out" style="background:rgba(255,255,255,.12);border:none;border-radius:6px;color:#fff;cursor:pointer;padding:6px 10px;font-size:18px;line-height:1;">－</button>
+        <button onclick="lbReset()"    title="Reset zoom" style="background:rgba(255,255,255,.12);border:none;border-radius:6px;color:#fff;cursor:pointer;padding:6px 9px;font-size:12px;font-weight:600;line-height:1;">1:1</button>
+        <button onclick="lbDownload()" title="Download" style="background:rgba(255,255,255,.12);border:none;border-radius:6px;color:#fff;cursor:pointer;padding:6px 10px;line-height:1;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button onclick="lbCopy()" title="Copy image" style="background:rgba(255,255,255,.12);border:none;border-radius:6px;color:#fff;cursor:pointer;padding:6px 10px;line-height:1;" id="lbCopyBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button onclick="closeLightbox()" title="Close (Esc)" style="background:rgba(255,255,255,.12);border:none;border-radius:6px;color:#fff;cursor:pointer;padding:6px 10px;font-size:20px;line-height:1;">&times;</button>
+    </div>
+    <!-- image container (scrollable for large zooms) -->
+    <div id="lbScroll" style="overflow:auto;max-width:100vw;max-height:100vh;display:flex;align-items:center;justify-content:center;cursor:zoom-in;" onclick="if(event.target===this)closeLightbox()">
+        <img id="lightboxImg" src="" alt="Cheque Image" style="display:block;transform-origin:center;transition:transform .15s;">
+    </div>
+    <div id="lbCopyFb" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:#10b981;color:#fff;padding:6px 18px;border-radius:20px;font-size:13px;font-weight:600;display:none;">✓ Copied!</div>
+</div>
+
+<!-- ── Share Image Modal ── -->
+<div id="shareModalBackdrop" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.65);z-index:1050;overflow-y:auto;align-items:flex-start;justify-content:center;padding:max(20px,8vh) 16px 20px;box-sizing:border-box;">
+    <div style="background:#111827;border:1px solid rgba(51,65,85,.7);border-radius:16px;width:100%;max-width:480px;flex-shrink:0;margin:0 auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);position:relative;box-sizing:border-box;">
+        <button type="button" id="shareModalClose"
+                style="position:absolute;top:12px;right:14px;background:rgba(255,255,255,.07);border:none;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1;">&times;</button>
+
+        <!-- Header -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+            <div style="width:34px;height:34px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </div>
+            <div>
+                <div style="font-size:15px;font-weight:700;color:#f1f5f9;">Share Cheque Image</div>
+                <div style="font-size:12px;color:#64748b;">No login required to view</div>
+            </div>
+        </div>
+
+        <!-- Loading state -->
+        <div id="shareSpinner" style="text-align:center;padding:20px 0;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" style="animation:spin 1s linear infinite;"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <p style="margin-top:8px;font-size:13px;color:#64748b;">Generating link…</p>
+        </div>
+
+        <!-- Main content -->
+        <div id="shareContent" style="display:none;">
+            <!-- Link row -->
+            <div style="margin-bottom:14px;">
+                <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">Share Link</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <input id="shareLinkInput" type="text" readonly
+                           style="flex:1;min-width:120px;background:#0d1117;border:1px solid rgba(51,65,85,.6);border-radius:8px;padding:8px 10px;font-size:12px;font-family:monospace;color:#94a3b8;outline:none;" value="">
+                    <button type="button" id="copyLinkBtn"
+                            style="padding:8px 13px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);border-radius:8px;color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">Copy</button>
+                    <a id="openLinkBtn" href="#" target="_blank" rel="noopener"
+                       style="padding:8px 13px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.3);border-radius:8px;color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;text-decoration:none;display:flex;align-items:center;gap:4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        Open
+                    </a>
+                </div>
+                <div id="copyFeedback" style="display:none;margin-top:5px;font-size:12px;color:#10b981;font-weight:600;">✓ Copied!</div>
+            </div>
+
+            <div style="height:1px;background:rgba(51,65,85,.5);margin-bottom:14px;"></div>
+
+            <!-- QR Code — centred column layout -->
+            <div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;">
+                <div id="qrCodeContainer"
+                     style="background:#fff;padding:10px;border-radius:12px;line-height:0;display:inline-block;box-shadow:0 0 0 1px rgba(255,255,255,.08);"></div>
+                <div style="font-size:12px;color:#64748b;line-height:1.5;max-width:280px;">
+                    Scan this QR code to open the cheque image on any device.
+                </div>
+                <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                    <button type="button" id="downloadQrBtn"
+                            style="padding:8px 18px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:8px;color:#34d399;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Save QR
+                    </button>
+                    <button type="button" id="copyQrBtn"
+                            style="padding:8px 18px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);border-radius:8px;color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        Copy QR
+                    </button>
+                </div>
+                <div id="copyQrFb" style="display:none;font-size:12px;color:#10b981;font-weight:600;">✓ QR copied!</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ── Lightbox ── */
+var _lbScale = 1;
+function openLightbox(src) {
+    _lbScale = 1;
+    var img = document.getElementById('lightboxImg');
+    img.src = src;
+    img.style.transform = 'scale(1)';
+    var lb = document.getElementById('lightbox');
+    lb.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+    document.getElementById('lightbox').style.display = 'none';
+    document.body.style.overflow = '';
+}
+function lbZoom(factor) {
+    _lbScale = Math.min(Math.max(_lbScale * factor, 0.2), 8);
+    document.getElementById('lightboxImg').style.transform = 'scale(' + _lbScale + ')';
+    document.getElementById('lbScroll').style.cursor = _lbScale > 1 ? 'grab' : 'zoom-in';
+}
+function lbReset() {
+    _lbScale = 1;
+    document.getElementById('lightboxImg').style.transform = 'scale(1)';
+    document.getElementById('lbScroll').style.cursor = 'zoom-in';
+}
+function lbDownload() {
+    var src = document.getElementById('lightboxImg').src;
+    var a = document.createElement('a');
+    a.href = src;
+    a.download = src.split('/').pop() || 'cheque-image';
+    a.click();
+}
+function lbCopy() {
+    var img = document.getElementById('lightboxImg');
+    var canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    canvas.toBlob(function(blob) {
+        if (!blob) { alert('Copy not supported for this image.'); return; }
+        try {
+            navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(function() {
+                var fb = document.getElementById('lbCopyFb');
+                fb.style.display = 'block';
+                setTimeout(function(){ fb.style.display = 'none'; }, 2000);
+            });
+        } catch(e) { alert('Copy not supported in this browser.'); }
+    });
+}
+document.addEventListener('keydown', function(e) {
+    var lb = document.getElementById('lightbox');
+    if (lb && lb.style.display === 'flex') {
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === '+' || e.key === '=') lbZoom(1.25);
+        if (e.key === '-') lbZoom(0.8);
+        if (e.key === '0') lbReset();
+    }
+});
+// Mouse-wheel zoom inside lightbox
+document.getElementById('lbScroll').addEventListener('wheel', function(e) {
+    e.preventDefault();
+    lbZoom(e.deltaY < 0 ? 1.1 : 0.9);
+}, { passive: false });
+
+/* Validate that a remarks textarea inside a transition form is not blank.
+   Called via onsubmit="return requireRemarks(this, 'msg')" */
+function requireRemarks(form, msg) {
+    const ta = form.querySelector('textarea[name="remarks"]');
+    if (!ta) return true;
+    if (!ta.value.trim()) {
+        ta.classList.add('is-invalid');
+        ta.focus();
+        // Show or create inline error message
+        let err = ta.nextElementSibling;
+        if (!err || !err.classList.contains('field-error')) {
+            err = document.createElement('span');
+            err.className = 'field-error';
+            ta.insertAdjacentElement('afterend', err);
+        }
+        err.textContent = msg || 'Remarks are required.';
+        err.style.display = '';
+        return false;
+    }
+    ta.classList.remove('is-invalid');
+    const err = ta.nextElementSibling;
+    if (err && err.classList.contains('field-error')) err.style.display = 'none';
+    return true;
+}
+
+/* ── Share Image ── */
+(function () {
+    var styleEl = document.createElement('style');
+    styleEl.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(styleEl);
+
+    var backdrop    = document.getElementById('shareModalBackdrop');
+    var closeBtn    = document.getElementById('shareModalClose');
+    var spinner     = document.getElementById('shareSpinner');
+    var content     = document.getElementById('shareContent');
+    var linkInput   = document.getElementById('shareLinkInput');
+    var copyBtn     = document.getElementById('copyLinkBtn');
+    var openLinkBtn = document.getElementById('openLinkBtn');
+    var copyFb      = document.getElementById('copyFeedback');
+    var qrContainer = document.getElementById('qrCodeContainer');
+    var dlBtn       = document.getElementById('downloadQrBtn');
+    var copyQrBtn   = document.getElementById('copyQrBtn');
+    var copyQrFb    = document.getElementById('copyQrFb');
+    var shareBtn    = document.getElementById('shareImageBtn');
+
+    if (!shareBtn) return;
+
+    var currentUrl = '';
+    var prefetched = null;   // cached API response
+
+    function getCsrfToken() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta) return meta.getAttribute('content');
+        var inp = document.querySelector('input[name="csrf_token"]');
+        return inp ? inp.value : '';
+    }
+
+    var qrSrc = '';   // same-origin PNG URL, safe for canvas
+
+    function populateModal(data) {
+        currentUrl = data.url;
+        linkInput.value = currentUrl;
+        if (openLinkBtn) openLinkBtn.href = currentUrl;
+        // Server-side QR — same origin, no CORS, works with canvas for save/copy
+        qrSrc = '/cheques/qr.png?url=' + encodeURIComponent(currentUrl);
+        qrContainer.innerHTML = '<img id="qrImg" src="' + qrSrc +
+            '" width="160" height="160" style="display:block;border-radius:4px;" alt="QR">';
+        spinner.style.display = 'none';
+        content.style.display = 'block';
+        copyFb.style.display  = 'none';
+        if (copyQrFb) copyQrFb.style.display = 'none';
+    }
+
+    // Pre-fetch as soon as page is interactive so the modal opens instantly
+    function prefetch() {
+        if (prefetched) return;
+        prefetched = 'loading';
+        fetch(shareBtn.dataset.shareUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() },
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(data){ prefetched = data; })
+        .catch(function(){ prefetched = null; });
+    }
+    // Start prefetch eagerly
+    setTimeout(prefetch, 300);
+    shareBtn.addEventListener('mouseenter', prefetch);
+
+    function openModal() {
+        backdrop.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        if (prefetched && prefetched !== 'loading') {
+            spinner.style.display = 'none';
+            content.style.display = 'block';
+            populateModal(prefetched);
+        } else {
+            spinner.style.display = 'block';
+            content.style.display = 'none';
+            // If not yet ready, wait for it
+            var poll = setInterval(function() {
+                if (prefetched && prefetched !== 'loading') {
+                    clearInterval(poll);
+                    populateModal(prefetched);
+                } else if (!prefetched) {
+                    clearInterval(poll);
+                    // Retry inline
+                    fetch(shareBtn.dataset.shareUrl, {
+                        method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() },
+                    }).then(function(r){ return r.json(); })
+                      .then(function(data){ prefetched = data; populateModal(data); })
+                      .catch(function(){ alert('Could not generate share link.'); closeModal(); });
+                }
+            }, 100);
+        }
+    }
+
+    function closeModal() { backdrop.style.display = 'none'; document.body.style.overflow = ''; }
+
+    shareBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', function(e) { if (e.target === backdrop) closeModal(); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+
+    // Copy link
+    copyBtn.addEventListener('click', function () {
+        navigator.clipboard.writeText(currentUrl).catch(function(){ linkInput.select(); document.execCommand('copy'); });
+        copyFb.style.display = 'block';
+        setTimeout(function(){ copyFb.style.display = 'none'; }, 2500);
+    });
+
+    // Helper: draw QR img onto canvas → returns a Promise<Blob>
+    function qrToBlob() {
+        return new Promise(function(resolve, reject) {
+            var tempImg = new Image();
+            tempImg.onload = function() {
+                var canvas = document.createElement('canvas');
+                canvas.width  = tempImg.naturalWidth  || 160;
+                canvas.height = tempImg.naturalHeight || 160;
+                canvas.getContext('2d').drawImage(tempImg, 0, 0);
+                canvas.toBlob(function(blob) {
+                    blob ? resolve(blob) : reject(new Error('toBlob failed'));
+                }, 'image/png');
+            };
+            tempImg.onerror = function() { reject(new Error('Image load failed')); };
+            tempImg.src = qrSrc;
+        });
+    }
+
+    // Save QR
+    dlBtn.addEventListener('click', function () {
+        if (!qrSrc) return;
+        // Direct download — same-origin PNG, no CORS needed
+        var a = document.createElement('a');
+        a.href = qrSrc;
+        a.download = 'cheque-qr.png';
+        a.click();
+    });
+
+    // Copy QR to clipboard
+    if (copyQrBtn) {
+        copyQrBtn.addEventListener('click', function () {
+            if (!qrSrc) return;
+            qrToBlob().then(function(blob) {
+                try {
+                    navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(function(){
+                        if (copyQrFb) { copyQrFb.style.display = 'block'; setTimeout(function(){ copyQrFb.style.display = 'none'; }, 2000); }
+                    }).catch(function(){ alert('Clipboard write blocked — try saving instead.'); });
+                } catch(e) { alert('Copy image not supported in this browser — try Save QR.'); }
+            }).catch(function(){ alert('Could not load QR image.'); });
+        });
+    }
+}());
+</script>
+{% endblock %}

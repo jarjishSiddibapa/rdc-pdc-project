@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if customer else 'New' }} Customer — {{ app_name }}{% endblock %}
+{% block page_title %}{{ 'Edit Customer' if customer else 'New Customer' }}{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:700px;">
+    <div class="card-header">
+        <h2 class="card-title">{{ 'Edit Customer' if customer else 'Create New Customer' }}</h2>
+    </div>
+    <form method="POST" class="form-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-row-2">
+            <div class="form-group">
+                <label for="customer_code" class="form-label">Customer Code <span class="required">*</span></label>
+                <input type="text" id="customer_code" name="customer_code" class="form-input" value="{{ customer.customer_code if customer else '' }}" {{ 'readonly' if customer }} required placeholder="e.g. CUST001" style="text-transform:uppercase">
+            </div>
+            <div class="form-group">
+                <label for="customer_name" class="form-label">Customer Name <span class="required">*</span></label>
+                <input type="text" id="customer_name" name="customer_name" class="form-input" value="{{ customer.customer_name if customer else '' }}" required placeholder="Full business name">
+            </div>
+        </div>
+
+        <div class="form-row-2">
+            <div class="form-group">
+                <label for="contact_person" class="form-label">Contact Person</label>
+                <input type="text" id="contact_person" name="contact_person" class="form-input" value="{{ customer.contact_person if customer else '' }}" placeholder="Primary contact">
+            </div>
+            <div class="form-group">
+                <label for="contact_phone" class="form-label">Phone</label>
+                <input type="tel" id="contact_phone" name="contact_phone" class="form-input" value="{{ customer.contact_phone if customer else '' }}" placeholder="+91 XXXXX XXXXX">
+            </div>
+        </div>
+
+        <div class="form-row-2">
+            <div class="form-group">
+                <label for="contact_email" class="form-label">Email</label>
+                <input type="email" id="contact_email" name="contact_email" class="form-input" value="{{ customer.contact_email if customer else '' }}" placeholder="email@example.com">
+            </div>
+            <div class="form-group">
+                <label for="gst_number" class="form-label">GST Number</label>
+                <input type="text" id="gst_number" name="gst_number" class="form-input" value="{{ customer.gst_number if customer else '' }}" placeholder="e.g. 29ABCDE1234F1Z5" style="text-transform:uppercase" maxlength="15">
+            </div>
+        </div>
+
+        <div class="form-row-2">
+            <div class="form-group">
+                <label for="city" class="form-label">City</label>
+                <input type="text" id="city" name="city" class="form-input" value="{{ customer.city if customer else '' }}" placeholder="City">
+            </div>
+            <div class="form-group">
+                <label for="address" class="form-label">Address</label>
+                <textarea id="address" name="address" class="form-input form-textarea" rows="2" placeholder="Full address">{{ customer.address if customer else '' }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('customers.list_customers') }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">{{ 'Update' if customer else 'Create' }} Customer</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
